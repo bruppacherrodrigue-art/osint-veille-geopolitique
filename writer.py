@@ -29,6 +29,66 @@ except ImportError:
     TWEET_MAX_CHARS   = 4000
 
 # ============================================================
+# BANQUE DE HASHTAGS OPTIMISÉS PAR RÉGION
+# Sélection basée sur volume de recherche X, communauté francophone,
+# et visibilité cross-langue (FR + EN pour portée maximale).
+# ============================================================
+
+HASHTAGS_PAR_REGION = {
+    "ukraine": [
+        # Identité du conflit
+        "#Ukraine", "#Russie", "#Russia", "#UkraineWar", "#GuerreEnUkraine",
+        # Géopolitique & analyse
+        "#Géopolitique", "#OSINT", "#RelationsInternationales",
+        # Acteurs & lieux clés
+        "#Zelensky", "#Poutine", "#Kremlin", "#OTAN", "#NATO",
+        # Thèmes récurrents
+        "#Drone", "#FrontUkrainien", "#AideUkraine", "#DefenseAerienne",
+        # Communauté analytique
+        "#AnalyseGéopolitique", "#SecuriteInternationale", "#Renseignement",
+    ],
+    "moyen_orient": [
+        # Conflit principal
+        "#Gaza", "#Israel", "#Israël", "#Palestine", "#GuerreAGaza",
+        # Acteurs régionaux
+        "#Iran", "#Hezbollah", "#Hamas", "#Liban", "#Syrie",
+        # Géopolitique & analyse
+        "#MoyenOrient", "#MiddleEast", "#Géopolitique", "#OSINT",
+        # Thèmes récurrents
+        "#CriseHumanitaire", "#Diplomatie", "#ConfitRegional",
+        # Communauté analytique
+        "#AnalyseGéopolitique", "#RelationsInternationales", "#SecuriteInternationale",
+    ],
+    "otan": [
+        # Alliance & défense
+        "#OTAN", "#NATO", "#DefenseEuropeenne", "#AllianceAtlantique",
+        # Géographie stratégique
+        "#Europe", "#Baltique", "#Pologne", "#Scandinavie",
+        # Géopolitique & analyse
+        "#Géopolitique", "#OSINT", "#SecuriteEuropeenne",
+        # Thèmes récurrents
+        "#Rearmement", "#BudgetDefense", "#ArticleV", "#Dissuasion",
+        # Communauté analytique
+        "#AnalyseGéopolitique", "#RelationsInternationales", "#Diplomatie",
+    ],
+}
+
+HASHTAGS_COMMUNS = ["#Géopolitique", "#OSINT", "#AnalyseGéopolitique",
+                    "#RelationsInternationales", "#SecuriteInternationale"]
+
+
+def _get_hashtags(region):
+    """Retourne la liste de hashtags disponibles pour une région."""
+    return HASHTAGS_PAR_REGION.get(region, HASHTAGS_COMMUNS)
+
+
+def _formater_liste_hashtags(region):
+    """Retourne la liste de hashtags en texte pour injection dans les prompts."""
+    tags = _get_hashtags(region)
+    return " ".join(tags)
+
+
+# ============================================================
 # PROMPTS — POSTS SIMPLES
 # ============================================================
 
@@ -41,12 +101,17 @@ ANALYSES RÉCENTES ({region}) :
 POSTS DÉJÀ RÉDIGÉS (à NE PAS répéter, prendre un angle DIFFÉRENT) :
 {posts_existants}
 
+HASHTAGS DISPONIBLES (choisir 6 à 8 parmi ceux-ci) :
+{hashtags_disponibles}
+
 Rédige UN post X (max {max_chars} caractères) sur l'actualité {region} en style "platon_punk" :
 - Commence par un fait brut ou une question déstabilisante
 - Décrypte ce que les médias mainstream ne disent pas
 - Termine par une conséquence concrète ou une question ouverte
 - Ton : direct, sans condescendance, jamais vague
-- Hashtags : 2-3 maximum, pertinents (#Ukraine #OSINT #Géopolitique)
+- Hashtags : place 6 à 8 hashtags à la FIN du post, sur une ligne séparée
+  → Choisis les plus pertinents selon l'angle exact du post (pas tous les mêmes à chaque fois)
+  → Mélange hashtags spécifiques (ex: #Gaza) et communautaires (ex: #OSINT #Géopolitique)
 - Pas d'emojis sauf si vraiment utiles (max 2)
 
 Retourne UNIQUEMENT le texte du post, sans guillemets ni explication."""
@@ -60,12 +125,17 @@ ANALYSES RÉCENTES ({region}) :
 POSTS DÉJÀ RÉDIGÉS (à NE PAS répéter, prendre un angle DIFFÉRENT) :
 {posts_existants}
 
+HASHTAGS DISPONIBLES (choisir 6 à 8 parmi ceux-ci) :
+{hashtags_disponibles}
+
 Rédige UN post X (max {max_chars} caractères) sur l'actualité {region} en style journalistique :
 - Commence par le fait le plus important (règle de la pyramide inversée)
 - Contextualise avec 1-2 éléments de fond
 - Termine par l'enjeu ou la prochaine étape à surveiller
 - Ton : neutre, factuel, sans jargon inutile
-- Hashtags : 2-3 maximum
+- Hashtags : place 6 à 8 hashtags à la FIN du post, sur une ligne séparée
+  → Choisis les plus pertinents selon le sujet précis traité dans le post
+  → Mélange hashtags géographiques/thématiques + hashtags communautaires (#OSINT #Géopolitique)
 - Émojis autorisés mais sobres (max 3)
 
 Retourne UNIQUEMENT le texte du post, sans guillemets ni explication."""
@@ -81,6 +151,9 @@ ANALYSES RÉCENTES :
 
 POSTS DÉJÀ RÉDIGÉS (prendre un angle DIFFÉRENT) :
 {posts_existants}
+
+HASHTAGS DISPONIBLES (choisir 6 à 8 pour le tweet final uniquement) :
+{hashtags_disponibles}
 
 ⚠️ RÈGLES ABSOLUES DU THREAD — LIS ATTENTIVEMENT :
 
@@ -99,14 +172,17 @@ STRUCTURE NARRATIVE OBLIGATOIRE :
 
 - Tweet 3 (acte 3 — "3/") : Boucle sur le tweet 0 (callback). Reformule la question
   initiale avec les éléments révélés. Termine par une question ouverte ou un fait
-  à surveiller dans les 48h. Hashtags ici : 2-3 max.
+  à surveiller dans les 48h.
+  Hashtags ICI UNIQUEMENT (pas dans les autres tweets) : 6 à 8 hashtags sur une ligne
+  séparée à la fin. Choisis dans la liste fournie les plus pertinents pour ce thread.
 
 EXEMPLE DE BON THREAD (modèle à suivre) :
 ---
 Tweet 0 : "🧵 THREAD | 47 drones Shahed abattus en 24h sur Zaporizhzhia. Mais personne ne pose la vraie question. ⬇️"
 Tweet 1 : "1/ 47 drones, c'est 3x la moyenne hebdomadaire. Pourquoi cette saturation soudaine ? Moscou teste une nouvelle vague avant l'offensive de printemps. Les patterns de ciblage ont changé."
 Tweet 2 : "2/ Ce que les médias ne disent pas : le taux d'interception ukrainien est passé de 80% à 62% en 2 semaines. La défense aérienne s'épuise. Les stocks de missiles Patriot s'amenuisent."
-Tweet 3 : "3/ 47 drones abattus aujourd'hui. Combien demain si les livraisons de missiles sol-air n'arrivent pas avant le printemps ? C'est LA question des prochaines 48h. #Ukraine #OSINT #Géopolitique"
+Tweet 3 : "3/ 47 drones abattus aujourd'hui. Combien demain si les livraisons de missiles sol-air n'arrivent pas avant le printemps ? C'est LA question des prochaines 48h.
+#Ukraine #UkraineWar #GuerreEnUkraine #DefenseAerienne #OTAN #OSINT #Géopolitique #AnalyseGéopolitique"
 ---
 
 EXEMPLE DE MAUVAIS THREAD (à éviter absolument) :
@@ -135,16 +211,20 @@ ANALYSES RÉCENTES ({region}) :
 
 Rédige un article structuré (max {max_chars} caractères) sur la situation {region} :
 
-Structure suggérée :
+HASHTAGS DISPONIBLES (choisir 6 à 8 parmi ceux-ci) :
+{hashtags_disponibles}
+
+Structure obligatoire :
 📌 TITRE — accroche en gras
 📍 Contexte (2-3 phrases)
 ⚡ Développements récents (3-4 points clés)
 🔍 Analyse & implications (2-3 phrases)
 🔮 À surveiller (1-2 points)
-#hashtag1 #hashtag2 #hashtag3
+[ligne vide]
+[6 à 8 hashtags sur une seule ligne — choisis dans la liste ci-dessus, les plus pertinents]
 
 Ton : sérieux, pédagogique, jamais condescendant.
-Retourne UNIQUEMENT le texte de l'article."""
+Retourne UNIQUEMENT le texte de l'article.
 
 # ============================================================
 # PROMPTS — PRÉDICTIONS
@@ -159,14 +239,18 @@ Probabilité : {probabilite:.0%}
 Horizon : {horizon} jours
 Raisonnement : {raisonnement}
 
+HASHTAGS DISPONIBLES (choisir 6 à 8 parmi ceux-ci) :
+{hashtags_disponibles}
+
 Rédige un post X (max {max_chars} caractères) présentant cette prédiction :
 - Formule la prédiction clairement
 - Donne le raisonnement en 1-2 phrases
 - Indique la probabilité et l'horizon
 - Termine par le critère de vérification
 - Utilise 🔮 comme emoji signature
+- Place 6 à 8 hashtags sur une ligne séparée à la fin
 
-Retourne UNIQUEMENT le texte du post."""
+Retourne UNIQUEMENT le texte du post.
 
 PROMPT_BILAN_PREDICTION = """Tu es un analyste géopolitique publiant le bilan d'une prédiction sur X (@Rodjayb1).
 
@@ -176,14 +260,18 @@ EXPLICATION : {explication}
 SCORE PRÉCISION : {score:.0%}
 LEÇONS : {lecons}
 
+HASHTAGS DISPONIBLES (choisir 6 à 8 parmi ceux-ci) :
+{hashtags_disponibles}
+
 Rédige un post X (max {max_chars} caractères) faisant le bilan honnête de cette prédiction :
 - Rappelle brièvement la prédiction
 - Annonce le résultat clairement (réalisée / partielle / ratée)
 - Explique pourquoi en 1-2 phrases
 - Tire la leçon pour la suite
 - Ton : honnête, sans excuses ni auto-congratulation
+- Place 6 à 8 hashtags sur une ligne séparée à la fin
 
-Retourne UNIQUEMENT le texte du post."""
+Retourne UNIQUEMENT le texte du post.
 
 
 # ============================================================
@@ -299,6 +387,8 @@ def generer_post_pour_region(region, style="platon_punk", format_type="post"):
     try:
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
+        hashtags = _formater_liste_hashtags(region)
+
         if format_type == "thread":
             style_label = (
                 "Platon Punk, analyste radical et lucide,"
@@ -310,6 +400,7 @@ def generer_post_pour_region(region, style="platon_punk", format_type="post"):
                 region=region.replace("_", " "),
                 analyses_texte=analyses_texte,
                 posts_existants=posts_existants,
+                hashtags_disponibles=hashtags,
                 max_chars_tweet=280
             )
             max_tokens = 800
@@ -318,6 +409,7 @@ def generer_post_pour_region(region, style="platon_punk", format_type="post"):
             prompt = PROMPT_ARTICLE.format(
                 region=region.replace("_", " "),
                 analyses_texte=analyses_texte,
+                hashtags_disponibles=hashtags,
                 max_chars=TWEET_MAX_CHARS
             )
             max_tokens = 1500
@@ -328,6 +420,7 @@ def generer_post_pour_region(region, style="platon_punk", format_type="post"):
                     region=region.replace("_", " "),
                     analyses_texte=analyses_texte,
                     posts_existants=posts_existants,
+                    hashtags_disponibles=hashtags,
                     max_chars=TWEET_MAX_CHARS
                 )
             else:
@@ -335,6 +428,7 @@ def generer_post_pour_region(region, style="platon_punk", format_type="post"):
                     region=region.replace("_", " "),
                     analyses_texte=analyses_texte,
                     posts_existants=posts_existants,
+                    hashtags_disponibles=hashtags,
                     max_chars=TWEET_MAX_CHARS
                 )
             max_tokens = 600
@@ -395,6 +489,7 @@ def generer_post_prediction(pred_id, region, prediction, probabilite,
         probabilite=probabilite,
         horizon=horizon,
         raisonnement=raisonnement,
+        hashtags_disponibles=_formater_liste_hashtags(region),
         max_chars=TWEET_MAX_CHARS
     )
     try:
@@ -424,6 +519,7 @@ def generer_bilan_prediction(pred_id, region, prediction, resultat,
         explication=explication,
         score=score,
         lecons=lecons,
+        hashtags_disponibles=_formater_liste_hashtags(region),
         max_chars=TWEET_MAX_CHARS
     )
     try:
