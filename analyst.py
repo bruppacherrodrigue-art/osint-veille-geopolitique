@@ -17,6 +17,10 @@ import anthropic
 from database import (
     get_articles_recents, sauvegarder_analyse, get_dernieres_analyses, init_db
 )
+try:
+    from collector import PERSPECTIVES_SOURCES
+except ImportError:
+    PERSPECTIVES_SOURCES = {}
 from dedup import prepare_clustered_analysis, deduplifier_articles
 from memory import get_context_for_prompt, update_memory
 from analyst_terrain import get_briefing_terrain
@@ -40,6 +44,13 @@ Tu ne peux utiliser QUE les informations présentes dans les articles ci-dessous
 N'utilise PAS ta connaissance générale sur la région, l'histoire ou les acteurs.
 Si un fait n'est pas dans les articles fournis, il n'existe pas pour toi.
 Si les résumés sont trop courts pour produire une analyse solide, indique-le explicitement.
+
+📌 GESTION DES BIAIS DE SOURCES :
+Chaque article indique sa perspective entre crochets [ex: think-tank occidental, agence d'état russe].
+- Les sources marquées ⚠️ (TASS, IRNA, PressTV, NATO officiel) véhiculent des narratifs officiels — cite-les
+  explicitement comme tels et ne les traite pas comme des faits vérifiés.
+- Quand plusieurs perspectives divergent sur un même fait, note les deux versions séparément.
+- Privilégie les sources indépendantes et les think-tanks pour les faits factuels.
 
 CONTEXTE MÉMORISÉ (7 derniers jours — pour orientation uniquement, ne pas citer comme source) :
 {contexte_memoire}
@@ -79,8 +90,9 @@ def analyser_cluster(region, theme, articles, contexte_memoire, briefing_terrain
     Retourne le JSON d'analyse ou None en cas d'échec.
     """
     articles_texte = "\n\n".join([
-        "SOURCE : {src}\nDATE : {date}\nTITRE : {titre}\nRÉSUMÉ : {resume}\nURL : {url}".format(
+        "SOURCE : {src} [{perspective}]\nDATE : {date}\nTITRE : {titre}\nRÉSUMÉ : {resume}\nURL : {url}".format(
             src=a.get("source_name", "Inconnu"),
+            perspective=PERSPECTIVES_SOURCES.get(a.get("source_name", ""), "perspective inconnue"),
             date=(a.get("date_pub") or a.get("date_collecte") or "N/A")[:10],
             titre=a.get("titre", ""),
             resume=a.get("resume", "(résumé absent — analyser uniquement le titre)"),
