@@ -21,52 +21,74 @@ except ImportError:
 
 # ============================================================
 # SOURCES TERRAIN — UKRAINE
-# Telegram/blogueurs militaires via RSSHub (jamais dans collector.py)
+# Priorité : sources RSS directes (fiables) + RSSHub en bonus
+# NOTE RSSHub : rsshub.app public est souvent bloqué.
+#   → Auto-héberger : https://docs.rsshub.app/deploy/
+#   → Remplacer RSSHUB_BASE dans config.py par ton instance locale
 # ============================================================
 SOURCES_TERRAIN_UKRAINE = {
-    # Canaux Telegram militaires ukrainiens
-    "DeepStateUA (TG)":       f"{RSSHUB_BASE}/telegram/channel/deepstatemap",
-    "Ukraine Weapons Tracker": f"{RSSHUB_BASE}/telegram/channel/ukraineweaponstracker",
-    "Militarnyi (TG)":        f"{RSSHUB_BASE}/telegram/channel/militarnyi",
-    "Rezistent UA (TG)":      f"{RSSHUB_BASE}/telegram/channel/rezistentua",
-
-    # Canaux Telegram russes (surveillance)
-    "Rybar (TG)":             f"{RSSHUB_BASE}/telegram/channel/rybar",
-    "War Gonzo (TG)":         f"{RSSHUB_BASE}/telegram/channel/wargonzo",
-
-    # OSINT trackers
+    # --- RSS directs (fonctionnent sans RSSHub) ---
     "LiveUAmap":              "https://liveuamap.com/en/rss",
+    "Ukrinform Breaking":     "https://www.ukrinform.net/rss/block-lastnews",
+    "Ukraine MoD":            "https://www.mil.gov.ua/en/rss.xml",
+    "Oryx (pertes matériel)": "https://www.oryxspioenkop.com/feeds/posts/default",
+    "Kyiv Post":              "https://www.kyivpost.com/feed",
+    "Euromaidan Press":       "https://euromaidanpress.com/feed/",
+    "War on the Rocks":       "https://warontherocks.com/feed/",
+
+    # --- Via RSSHub (nécessite instance fonctionnelle) ---
+    "DeepStateUA (TG)":       f"{RSSHUB_BASE}/telegram/channel/deepstatemap",
+    "Ukraine Weapons (TG)":   f"{RSSHUB_BASE}/telegram/channel/ukraineweaponstracker",
+    "Rybar (TG)":             f"{RSSHUB_BASE}/telegram/channel/rybar",
 }
 
 # ============================================================
 # SOURCES TERRAIN — MOYEN-ORIENT
 # ============================================================
 SOURCES_TERRAIN_MOYEN_ORIENT = {
+    # --- RSS directs ---
+    "Middle East Monitor":    "https://www.middleeastmonitor.com/feed/",
+    "Palestine Chronicle":    "https://www.palestinechronicle.com/feed/",
+    "Al Jazeera Breaking":    "https://www.aljazeera.com/xml/rss/all.xml",
+    "OCHA ReliefWeb":         "https://reliefweb.int/updates/rss.xml",
+    "Iran International":     "https://www.iranintl.com/en/rss",
+    "Times of Israel":        "https://www.timesofisrael.com/feed/",
+
+    # --- Via RSSHub ---
     "Gaza Now (TG)":          f"{RSSHUB_BASE}/telegram/channel/gazanow",
     "Quds News (TG)":         f"{RSSHUB_BASE}/telegram/channel/QudsNEN",
-    "Iran International (TG)":f"{RSSHUB_BASE}/telegram/channel/IranIntl_Fa",
-    "Osint Gaza (TG)":        f"{RSSHUB_BASE}/telegram/channel/OsintGaza",
 }
 
 # ============================================================
 # SOURCES TERRAIN — OTAN / EUROPE
 # ============================================================
 SOURCES_TERRAIN_OTAN = {
+    # --- RSS directs ---
+    "War on the Rocks":       "https://warontherocks.com/feed/",
+    "IISS Analysis":          "https://www.iiss.org/en/research/rss",
+    "Politico Defense":       "https://rss.politico.eu/brussels-playbook",
+    "Defense One":            "https://www.defenseone.com/rss/all/",
+    "Breaking Defense":       "https://breakingdefense.com/feed/",
+    "Jane's (IISS)":          "https://www.janes.com/feeds/news",
+
+    # --- Via RSSHub ---
     "Intel Slava (TG)":       f"{RSSHUB_BASE}/telegram/channel/intelslava",
     "War Monitor (TG)":       f"{RSSHUB_BASE}/telegram/channel/war_monitor",
-    "European Disunion (TG)": f"{RSSHUB_BASE}/telegram/channel/europeandisunion",
 }
 
 # ============================================================
 # SOURCES TERRAIN GLOBALES (multi-régions, auto-tagging)
-# Ces sources ne sont PAS dans collector.py
 # ============================================================
 SOURCES_TERRAIN_GLOBALES = {
-    "OSINTdefender":          f"{RSSHUB_BASE}/telegram/channel/OSINTdefender",
-    "GeoConfirmed":           f"{RSSHUB_BASE}/telegram/channel/GeoConfirmed",
-    "Intel Crab (TG)":        f"{RSSHUB_BASE}/telegram/channel/IntelCrab",
-    "Conflict Monitor (TG)":  f"{RSSHUB_BASE}/telegram/channel/conflictmonitor",
+    # --- RSS directs (fiables) ---
     "ACLED":                  "https://acleddata.com/feed/",
+    "Crisis Group":           "https://www.crisisgroup.org/rss-feed",
+    "Reuters Breaking":       "https://feeds.reuters.com/reuters/topNews",
+    "AFP (via Google News)":  "https://news.google.com/rss/search?q=conflict+war&hl=fr&gl=FR&ceid=FR:fr",
+
+    # --- Via RSSHub ---
+    "OSINTdefender (TG)":     f"{RSSHUB_BASE}/telegram/channel/OSINTdefender",
+    "GeoConfirmed (TG)":      f"{RSSHUB_BASE}/telegram/channel/GeoConfirmed",
 }
 
 SOURCES_TERRAIN = {
@@ -85,13 +107,22 @@ FIABILITE_PAR_TYPE = {
 
 # Classification des sources
 TYPE_SOURCE = {
-    "DeepStateUA (TG)":       "tracker",
-    "Ukraine Weapons Tracker": "tracker",
+    # Trackers visuels
     "LiveUAmap":              "tracker",
-    "OSINTdefender":          "osint",
-    "GeoConfirmed":           "osint",
+    "Oryx (pertes matériel)": "tracker",
+    "DeepStateUA (TG)":       "tracker",
+    "Ukraine Weapons (TG)":   "tracker",
+    "GeoConfirmed (TG)":      "tracker",
+    # OSINT agrégateurs
     "ACLED":                  "osint",
-    "Intel Crab (TG)":        "osint",
+    "OSINTdefender (TG)":     "osint",
+    "Crisis Group":           "osint",
+    # Médias terrain rapides
+    "Ukrinform Breaking":     "osint",
+    "Ukraine MoD":            "osint",
+    "Palestine Chronicle":    "osint",
+    "OCHA ReliefWeb":         "osint",
+    "Reuters Breaking":       "osint",
 }
 
 # Mots-clés pour l'auto-tagging des sources globales terrain

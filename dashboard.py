@@ -18,6 +18,7 @@ from database import (
     init_db, get_articles_par_region, get_toutes_analyses,
     get_posts_brouillons, get_predictions_actives, get_predictions_verifiees,
     marquer_post_publie, marquer_post_rejete, supprimer_post,
+    supprimer_prediction,
     get_stats_engagement, get_dernieres_alertes, compter_articles
 )
 from writer import (
@@ -424,19 +425,25 @@ with tab_pred:
                 st.markdown(f"**Raisonnement :** {pred.get('raisonnement', '')}")
                 st.markdown(f"**Critère vérif :** {pred.get('critere_verification', '')}")
 
-                if st.button("🔮 Générer post prédiction", key=f"postpred_{pred['id']}"):
-                    from writer import generer_post_prediction
-                    generer_post_prediction(
-                        pred_id=pred["id"],
-                        region=pred["region"],
-                        prediction=pred.get("prediction", ""),
-                        probabilite=prob,
-                        horizon=horizon,
-                        raisonnement=pred.get("raisonnement", ""),
-                        critere=pred.get("critere_verification", "")
-                    )
-                    st.success("Post prédiction créé !")
-                    st.rerun()
+                col_pp, col_del = st.columns(2)
+                with col_pp:
+                    if st.button("🔮 Générer post", key=f"postpred_{pred['id']}"):
+                        from writer import generer_post_prediction
+                        generer_post_prediction(
+                            pred_id=pred["id"],
+                            region=pred["region"],
+                            prediction=pred.get("prediction", ""),
+                            probabilite=prob,
+                            horizon=horizon,
+                            raisonnement=pred.get("raisonnement", ""),
+                            critere=pred.get("critere_verification", "")
+                        )
+                        st.success("Post prédiction créé !")
+                        st.rerun()
+                with col_del:
+                    if st.button("🗑️ Supprimer", key=f"delpred_{pred['id']}"):
+                        supprimer_prediction(pred["id"])
+                        st.rerun()
 
     # --- Prédictions vérifiées ---
     st.divider()
@@ -460,18 +467,24 @@ with tab_pred:
                 st.markdown(f"**Score précision :** {score:.0%}")
                 st.markdown(f"**Leçons :** {pred.get('lecons', '')}")
 
-                if not pred.get("tweet_id_bilan"):
-                    if st.button("📋 Générer post bilan", key=f"bilan_{pred['id']}"):
-                        generer_bilan_prediction(
-                            pred_id=pred["id"],
-                            region=pred["region"],
-                            prediction=pred.get("prediction", ""),
-                            resultat=resultat,
-                            explication=pred.get("explication", ""),
-                            score=score,
-                            lecons=pred.get("lecons", "")
-                        )
-                        st.success("Post bilan créé !")
+                col_b, col_dv = st.columns(2)
+                with col_b:
+                    if not pred.get("tweet_id_bilan"):
+                        if st.button("📋 Générer post bilan", key=f"bilan_{pred['id']}"):
+                            generer_bilan_prediction(
+                                pred_id=pred["id"],
+                                region=pred["region"],
+                                prediction=pred.get("prediction", ""),
+                                resultat=resultat,
+                                explication=pred.get("explication", ""),
+                                score=score,
+                                lecons=pred.get("lecons", "")
+                            )
+                            st.success("Post bilan créé !")
+                            st.rerun()
+                with col_dv:
+                    if st.button("🗑️ Supprimer", key=f"delpredv_{pred['id']}"):
+                        supprimer_prediction(pred["id"])
                         st.rerun()
 
 # ============================================================

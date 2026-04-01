@@ -446,6 +446,14 @@ def verifier_prediction(pred_id, resultat, explication, precision_score, lecons)
     conn.close()
 
 
+def supprimer_prediction(pred_id):
+    """Supprime définitivement une prédiction de la base."""
+    conn = get_connection()
+    conn.execute("DELETE FROM predictions WHERE id = ?", (pred_id,))
+    conn.commit()
+    conn.close()
+
+
 def update_tweet_id_prediction(pred_id, tweet_id_prediction=None, tweet_id_bilan=None):
     """Met à jour les tweet_ids d'une prédiction."""
     conn = get_connection()
