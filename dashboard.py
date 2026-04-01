@@ -634,7 +634,11 @@ with tab_posts:
                                 except Exception:
                                     nouveau_contenu = _json.dumps({"type": "post", "texte": version_amel}, ensure_ascii=False)
                                 update_post_contenu(post["id"], nouveau_contenu)
-                                st.success("✅ Contenu mis à jour !")
+                                # Relancer l'analyse éditoriale sur la version améliorée
+                                with st.spinner("🔄 Révision éditoriale en cours..."):
+                                    from editor import verifier_post
+                                    verifier_post(post["id"])
+                                st.success("✅ Contenu mis à jour et rapport révisé !")
                                 st.rerun()
 
                 col_x, col_pub, col_rej, col_sup = st.columns(4)
