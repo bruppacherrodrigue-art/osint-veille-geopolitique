@@ -13,28 +13,28 @@ import os
 
 try:
     from config import (
-        TWITTER_API_KEY, TWITTER_API_SECRET,
-        TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET
+        X_API_KEY, X_API_SECRET,
+        X_ACCESS_TOKEN, X_ACCESS_TOKEN_SECRET
     )
 except ImportError:
-    TWITTER_API_KEY       = os.environ.get("TWITTER_API_KEY", "")
-    TWITTER_API_SECRET    = os.environ.get("TWITTER_API_SECRET", "")
-    TWITTER_ACCESS_TOKEN  = os.environ.get("TWITTER_ACCESS_TOKEN", "")
-    TWITTER_ACCESS_SECRET = os.environ.get("TWITTER_ACCESS_SECRET", "")
+    X_API_KEY             = os.environ.get("X_API_KEY", "")
+    X_API_SECRET          = os.environ.get("X_API_SECRET", "")
+    X_ACCESS_TOKEN        = os.environ.get("X_ACCESS_TOKEN", "")
+    X_ACCESS_TOKEN_SECRET = os.environ.get("X_ACCESS_TOKEN_SECRET", "")
 
 
 def _get_client():
     """Crée un client tweepy v2. Retourne None si tweepy absent ou clés manquantes."""
-    if not all([TWITTER_API_KEY, TWITTER_API_SECRET,
-                TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET]):
+    if not all([X_API_KEY, X_API_SECRET,
+                X_ACCESS_TOKEN, X_ACCESS_TOKEN_SECRET]):
         return None, "Clés Twitter manquantes dans config.py"
     try:
         import tweepy
         client = tweepy.Client(
-            consumer_key=TWITTER_API_KEY,
-            consumer_secret=TWITTER_API_SECRET,
-            access_token=TWITTER_ACCESS_TOKEN,
-            access_token_secret=TWITTER_ACCESS_SECRET
+            consumer_key=X_API_KEY,
+            consumer_secret=X_API_SECRET,
+            access_token=X_ACCESS_TOKEN,
+            access_token_secret=X_ACCESS_TOKEN_SECRET
         )
         return client, None
     except ImportError:
