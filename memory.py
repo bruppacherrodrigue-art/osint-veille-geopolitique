@@ -119,16 +119,29 @@ Sois factuel et concis. Ne répète pas les dates en détail."""
         print(f"  ⚠️  Erreur mise à jour mémoire {region} : {e}")
 
 
+def _region_as_dict(valeur):
+    """
+    Normalise une entrée mémoire : accepte dict (nouveau format) ou str (ancien format).
+    Retourne toujours un dict avec les clés attendues.
+    """
+    if isinstance(valeur, dict):
+        return valeur
+    # Ancien format : la valeur est directement une string (synthèse brute)
+    return {"synthese": str(valeur), "date_mise_a_jour": "inconnue", "historique": []}
+
+
 def afficher_memoire(region):
     """Affiche le contenu mémorisé pour une région (usage debug/dashboard)."""
     data = _charger_memoire()
     if region not in data:
         return f"Aucune mémoire pour {region}."
+    entree = _region_as_dict(data[region])
+    date_maj = entree.get("date_mise_a_jour", "inconnue")
     return (
         f"**Synthèse ({region})**\n"
-        f"{data[region].get('synthese', 'Vide')}\n\n"
-        f"*Dernière mise à jour : {data[region].get('date_mise_a_jour', 'inconnue')[:16]}*\n"
-        f"*Entrées historiques : {len(data[region].get('historique', []))}*"
+        f"{entree.get('synthese', 'Vide')}\n\n"
+        f"*Dernière mise à jour : {date_maj[:16] if date_maj != 'inconnue' else 'inconnue'}*\n"
+        f"*Entrées historiques : {len(entree.get('historique', []))}*"
     )
 
 
@@ -136,6 +149,6 @@ def get_toutes_regions_memoire():
     """Retourne les régions présentes en mémoire avec leur date de mise à jour."""
     data = _charger_memoire()
     return {
-        region: data[region].get("date_mise_a_jour", "inconnue")
+        region: _region_as_dict(data[region]).get("date_mise_a_jour", "inconnue")
         for region in data
     }
