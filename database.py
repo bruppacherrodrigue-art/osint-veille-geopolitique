@@ -358,13 +358,31 @@ def get_posts_publies_recents(limit=20):
 
 
 def marquer_post_publie(post_id, tweet_id=None):
-    """Marque un post comme publié et enregistre le tweet_id."""
+    """Marque un post comme publié et crée automatiquement une entrée engagement."""
+    now = datetime.now()
     conn = get_connection()
     conn.execute("""
         UPDATE posts_x
         SET statut = 'publié', tweet_id = ?, date_publication = ?
         WHERE id = ?
-    """, (tweet_id, datetime.now().isoformat(), post_id))
+    """, (tweet_id, now.isoformat(), post_id))
+    # Récupérer les infos du post pour créer l'entrée engagement
+    row = conn.execute(
+        "SELECT region, style, contenu FROM posts_x WHERE id = ?", (post_id,)
+    ).fetchone()
+    if row:
+        contenu = row["contenu"] if isinstance(row, dict) else row[2]
+        region  = row["region"]  if isinstance(row, dict) else row[0]
+        style   = row["style"]   if isinstance(row, dict) else row[1]
+        is_thread = 1 if '"type": "thread"' in (contenu or "") else 0
+        char_count = len(contenu or "")
+        conn.execute("""
+            INSERT OR IGNORE INTO engagement
+            (post_id, tweet_id, published_at, hour_published, day_of_week,
+             region, style, char_count, is_thread, last_checked)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (post_id, tweet_id, now.isoformat(), now.hour, now.weekday(),
+              region, style, char_count, is_thread, now.isoformat()))
     conn.commit()
     conn.close()
 
@@ -417,6 +435,58 @@ def update_engagement(tweet_id, likes, retweets, replies, impressions):
           datetime.now().isoformat(), tweet_id))
     conn.commit()
     conn.close()
+
+
+def get_posts_publies_avec_engagement(limit=50):
+    """Retourne tous les posts publiés avec leurs métriques d'engagement."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT p.id, p.region, p.style, p.contenu, p.date_publication, p.tweet_id,
+               COALESCE(e.likes, 0)            as likes,
+               COALESCE(e.retweets, 0)         as retweets,
+               COALESCE(e.replies, 0)          as replies,
+               COALESCE(e.impressions, 0)      as impressions,
+               COALESCE(e.engagement_score, 0) as engagement_score,
+               COALESCE(e.is_thread, 0)        as is_thread,
+               e.last_checked
+        FROM posts_x p
+        LEFT JOIN engagement e ON p.id = e.post_id
+        WHERE p.statut = 'publié'
+        ORDER BY p.date_publication DESC
+        LIMIT ?
+    """, (limit,)).fetchall()
+    conn.close()
+    return rows
+
+
+def get_engagement_evolution(region=None, limit=30):
+    """Retourne l'évolution du score d'engagement dans le temps (pour graphique)."""
+    conn = get_connection()
+    if region:
+        rows = conn.execute("""
+            SELECT DATE(published_at) as jour,
+                   AVG(engagement_score) as score_moyen,
+                   SUM(likes) as total_likes,
+                   SUM(retweets) as total_retweets,
+                   COUNT(*) as nb_posts
+            FROM engagement
+            WHERE region = ?
+            GROUP BY DATE(published_at)
+            ORDER BY jour DESC LIMIT ?
+        """, (region, limit)).fetchall()
+    else:
+        rows = conn.execute("""
+            SELECT DATE(published_at) as jour,
+                   AVG(engagement_score) as score_moyen,
+                   SUM(likes) as total_likes,
+                   SUM(retweets) as total_retweets,
+                   COUNT(*) as nb_posts
+            FROM engagement
+            GROUP BY DATE(published_at)
+            ORDER BY jour DESC LIMIT ?
+        """, (limit,)).fetchall()
+    conn.close()
+    return rows
 
 
 def get_stats_engagement():

@@ -13,7 +13,9 @@ from database import (
     get_posts_brouillons, get_predictions_actives, get_predictions_verifiees,
     marquer_post_publie, marquer_post_rejete, supprimer_post,
     supprimer_prediction, update_post_contenu, get_editorial_review,
-    get_stats_engagement, get_dernieres_alertes, compter_articles
+    get_stats_engagement, get_posts_publies_avec_engagement,
+    get_engagement_evolution, update_engagement,
+    get_dernieres_alertes, compter_articles
 )
 from writer import (
     parser_contenu_post, extraire_tweets, extraire_texte_post,
@@ -808,46 +810,151 @@ with tab_macro:
 # ONGLET 8 — ENGAGEMENT
 # ============================================================
 with tab_engagement:
-    st.header("📈 Métriques d'engagement X")
+    import pandas as pd
 
-    stats = get_stats_engagement()
-    if not stats:
-        st.info("Aucune donnée d'engagement. Publie des posts et mets à jour les métriques.")
+    st.header("📈 Suivi d'engagement X")
+
+    posts_pub = get_posts_publies_avec_engagement(limit=50)
+
+    if not posts_pub:
+        st.info("Aucun post publié pour l'instant. Publie des posts depuis l'onglet 🐦 Posts X.")
     else:
-        import pandas as pd
-        rows = []
-        for s in stats:
-            rows.append({
-                "Région":     REGIONS.get(s["region"], s["region"]),
-                "Style":      STYLES.get(s["style"], s["style"]),
-                "Thread":     "🧵" if s["is_thread"] else "📝",
-                "Posts":      s["nb_posts"],
-                "Moy. Likes": f"{s['avg_likes'] or 0:.1f}",
-                "Moy. RT":    f"{s['avg_retweets'] or 0:.1f}",
-                "Score":      f"{s['avg_score'] or 0:.1f}",
-            })
+        # ── KPIs globaux ──────────────────────────────────────
+        total_posts      = len(posts_pub)
+        total_likes      = sum(p["likes"] or 0 for p in posts_pub)
+        total_retweets   = sum(p["retweets"] or 0 for p in posts_pub)
+        avg_score        = sum(p["engagement_score"] or 0 for p in posts_pub) / total_posts
+        best_post        = max(posts_pub, key=lambda p: p["engagement_score"] or 0)
 
-        df = pd.DataFrame(rows)
-        st.dataframe(df)
+        kc1, kc2, kc3, kc4 = st.columns(4)
+        kc1.metric("Posts publiés",   total_posts)
+        kc2.metric("Total likes",     total_likes)
+        kc3.metric("Total retweets",  total_retweets)
+        kc4.metric("Score moy.",      f"{avg_score:.1f}")
 
-        if len(rows) > 1:
-            fig, ax = plt.subplots(figsize=(8, 3))
+        st.divider()
+
+        # ── Graphique évolution temporelle ────────────────────
+        st.subheader("📊 Évolution dans le temps")
+
+        region_evo = st.selectbox(
+            "Région",
+            options=["Toutes"] + list(REGIONS.keys()),
+            format_func=lambda x: "🌐 Toutes" if x == "Toutes" else REGIONS[x],
+            key="evo_region"
+        )
+        evolution = get_engagement_evolution(
+            region=None if region_evo == "Toutes" else region_evo,
+            limit=30
+        )
+
+        if evolution:
+            evo_reversed = list(reversed(evolution))
+            jours   = [e["jour"] for e in evo_reversed]
+            scores  = [e["score_moyen"] or 0 for e in evo_reversed]
+            likes   = [e["total_likes"] or 0 for e in evo_reversed]
+            rts     = [e["total_retweets"] or 0 for e in evo_reversed]
+
+            fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 5), sharex=True)
             fig.patch.set_facecolor("#0d1117")
-            ax.set_facecolor("#161b22")
-            regions_uniq = list({r["Région"] for r in rows})
-            scores = [
-                sum((s["avg_score"] or 0) for s in stats if REGIONS.get(s["region"]) == r) /
-                max(1, sum(1 for s in stats if REGIONS.get(s["region"]) == r))
-                for r in regions_uniq
-            ]
-            ax.barh(regions_uniq, scores, color="#da3633")
-            ax.set_xlabel("Score moyen", color="#8b949e")
-            ax.set_title("Performance par région", color="#e6edf3")
-            ax.tick_params(colors="#8b949e")
-            ax.spines[:].set_color("#30363d")
-            ax.grid(True, alpha=0.2, color="#30363d", axis="x")
+            for ax in (ax1, ax2):
+                ax.set_facecolor("#161b22")
+                ax.tick_params(colors="#8b949e")
+                ax.spines[:].set_color("#30363d")
+                ax.grid(True, alpha=0.15, color="#30363d")
+
+            x = range(len(jours))
+            ax1.plot(x, scores, color="#da3633", linewidth=2, marker="o", markersize=4)
+            ax1.fill_between(x, scores, alpha=0.15, color="#da3633")
+            ax1.set_ylabel("Score engagement", color="#8b949e", fontsize=9)
+            ax1.set_title("Score d'engagement", color="#e6edf3", fontsize=10)
+
+            ax2.bar(x, likes, color="#1f6feb", alpha=0.8, label="Likes", width=0.4)
+            ax2.bar([xi + 0.4 for xi in x], rts, color="#388bfd", alpha=0.8, label="Retweets", width=0.4)
+            ax2.set_ylabel("Nombre", color="#8b949e", fontsize=9)
+            ax2.set_xticks(list(x))
+            ax2.set_xticklabels(jours, rotation=35, fontsize=7, color="#8b949e")
+            ax2.legend(facecolor="#161b22", labelcolor="#8b949e", fontsize=8)
+
+            plt.tight_layout()
             st.pyplot(fig)
             plt.close(fig)
+        else:
+            st.caption("Pas encore de données temporelles — saisis des métriques ci-dessous.")
+
+        st.divider()
+
+        # ── Saisie manuelle des métriques ─────────────────────
+        st.subheader("✏️ Saisir / mettre à jour les métriques")
+        st.caption("Entre les chiffres depuis ton profil X après publication.")
+
+        for post in posts_pub[:20]:
+            region_label = REGIONS.get(post["region"], post["region"])
+            date_pub = (post["date_publication"] or "")[:10]
+            type_icon = "🧵" if post["is_thread"] else "📝"
+            score_actuel = post["engagement_score"] or 0
+
+            from writer import extraire_texte_post
+            apercu = extraire_texte_post(post["contenu"])[:70]
+
+            with st.expander(
+                f"{type_icon} {region_label} · {date_pub} · Score {score_actuel:.0f} — {apercu}…"
+            ):
+                col_l, col_rt, col_rp, col_imp = st.columns(4)
+                with col_l:
+                    likes_val = st.number_input(
+                        "❤️ Likes", min_value=0, value=int(post["likes"] or 0),
+                        key=f"likes_{post['id']}"
+                    )
+                with col_rt:
+                    rts_val = st.number_input(
+                        "🔁 Retweets", min_value=0, value=int(post["retweets"] or 0),
+                        key=f"rt_{post['id']}"
+                    )
+                with col_rp:
+                    rp_val = st.number_input(
+                        "💬 Réponses", min_value=0, value=int(post["replies"] or 0),
+                        key=f"rp_{post['id']}"
+                    )
+                with col_imp:
+                    imp_val = st.number_input(
+                        "👁️ Impressions", min_value=0, value=int(post["impressions"] or 0),
+                        key=f"imp_{post['id']}"
+                    )
+
+                if st.button("💾 Enregistrer", key=f"save_eng_{post['id']}"):
+                    tweet_id = post.get("tweet_id") or str(post["id"])
+                    update_engagement(tweet_id, likes_val, rts_val, rp_val, imp_val)
+                    st.success("✅ Métriques enregistrées !")
+                    st.rerun()
+
+        st.divider()
+
+        # ── Tableau récapitulatif ──────────────────────────────
+        st.subheader("📋 Récapitulatif par format")
+        stats = get_stats_engagement()
+        if stats:
+            rows_t = []
+            for s in stats:
+                rows_t.append({
+                    "Région":     REGIONS.get(s["region"], s["region"]),
+                    "Style":      STYLES.get(s["style"], s["style"]),
+                    "Format":     "🧵 Thread" if s["is_thread"] else "📝 Post",
+                    "Nb posts":   s["nb_posts"],
+                    "Moy. likes": f"{s['avg_likes'] or 0:.1f}",
+                    "Moy. RT":    f"{s['avg_retweets'] or 0:.1f}",
+                    "Score moy.": f"{s['avg_score'] or 0:.1f}",
+                })
+            st.dataframe(pd.DataFrame(rows_t))
+
+        # ── Meilleur post ──────────────────────────────────────
+        if best_post and (best_post["engagement_score"] or 0) > 0:
+            st.subheader("🏆 Meilleur post")
+            from writer import extraire_texte_post as _etp
+            texte_best = _etp(best_post["contenu"])
+            st.markdown(f"**Région :** {REGIONS.get(best_post['region'], best_post['region'])}")
+            st.markdown(f"**Score :** {best_post['engagement_score']:.0f} — ❤️ {best_post['likes']} | 🔁 {best_post['retweets']} | 💬 {best_post['replies']}")
+            st.text_area("", value=texte_best[:500], height=100, key="best_post_display")
 
 # ============================================================
 # ONGLET 9 — MÉMOIRE
