@@ -224,7 +224,7 @@ Structure obligatoire :
 [6 à 8 hashtags sur une seule ligne — choisis dans la liste ci-dessus, les plus pertinents]
 
 Ton : sérieux, pédagogique, jamais condescendant.
-Retourne UNIQUEMENT le texte de l'article.
+Retourne UNIQUEMENT le texte de l'article."""
 
 # ============================================================
 # PROMPTS — PRÉDICTIONS
@@ -250,7 +250,7 @@ Rédige un post X (max {max_chars} caractères) présentant cette prédiction :
 - Utilise 🔮 comme emoji signature
 - Place 6 à 8 hashtags sur une ligne séparée à la fin
 
-Retourne UNIQUEMENT le texte du post.
+Retourne UNIQUEMENT le texte du post."""
 
 PROMPT_BILAN_PREDICTION = """Tu es un analyste géopolitique publiant le bilan d'une prédiction sur X (@Rodjayb1).
 
@@ -271,7 +271,7 @@ Rédige un post X (max {max_chars} caractères) faisant le bilan honnête de cet
 - Ton : honnête, sans excuses ni auto-congratulation
 - Place 6 à 8 hashtags sur une ligne séparée à la fin
 
-Retourne UNIQUEMENT le texte du post.
+Retourne UNIQUEMENT le texte du post."""
 
 
 # ============================================================
