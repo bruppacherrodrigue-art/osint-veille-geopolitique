@@ -16,7 +16,7 @@ from datetime import datetime
 
 from database import (
     init_db, get_articles_par_region, get_toutes_analyses,
-    get_posts_brouillons, get_predictions_actives,
+    get_posts_brouillons, get_predictions_actives, get_predictions_verifiees,
     marquer_post_publie, marquer_post_rejete, supprimer_post,
     get_stats_engagement, get_dernieres_alertes, compter_articles
 )
@@ -406,9 +406,9 @@ with tab_pred:
         st.subheader(f"Prédictions actives ({len(predictions)})")
         for pred in predictions:
             region_label = REGIONS.get(pred["region"], pred["region"])
-            prob = pred["probabilite"]
-            horizon = pred["horizon_jours"]
-            echeance = pred["date_echeance"][:10] if pred["date_echeance"] else "N/A"
+            prob    = pred.get("probabilite") or 0.0
+            horizon = pred.get("horizon_jours") or 0
+            echeance = (pred.get("date_echeance") or "")[:10] or "N/A"
             categorie = pred.get("categorie", "")
 
             prob_icon = "🟢" if prob >= 0.7 else ("🟠" if prob >= 0.5 else "🔴")
@@ -416,26 +416,58 @@ with tab_pred:
             with st.expander(
                 f"{prob_icon} {region_label} | {prob:.0%} | {horizon}j | {echeance}"
             ):
-                st.markdown(f"**Prédiction :** {pred['prediction']}")
+                st.markdown(f"**Prédiction :** {pred.get('prediction', '')}")
                 st.markdown(f"**Catégorie :** {categorie}")
                 st.markdown(f"**Acteurs :** {pred.get('acteurs_cles', 'N/A')}")
                 st.markdown(f"**Raisonnement :** {pred.get('raisonnement', '')}")
                 st.markdown(f"**Critère vérif :** {pred.get('critere_verification', '')}")
 
-                col_post_pred, col_bilan = st.columns(2)
-                with col_post_pred:
-                    if st.button("🔮 Générer post", key=f"postpred_{pred['id']}"):
-                        from writer import generer_post_prediction
-                        generer_post_prediction(
+                if st.button("🔮 Générer post prédiction", key=f"postpred_{pred['id']}"):
+                    from writer import generer_post_prediction
+                    generer_post_prediction(
+                        pred_id=pred["id"],
+                        region=pred["region"],
+                        prediction=pred.get("prediction", ""),
+                        probabilite=prob,
+                        horizon=horizon,
+                        raisonnement=pred.get("raisonnement", ""),
+                        critere=pred.get("critere_verification", "")
+                    )
+                    st.success("Post prédiction créé !")
+                    st.rerun()
+
+    # --- Prédictions vérifiées ---
+    st.divider()
+    predictions_verifiees = get_predictions_verifiees(limit=10)
+    if predictions_verifiees:
+        st.subheader(f"✅ Prédictions vérifiées ({len(predictions_verifiees)})")
+        for pred in predictions_verifiees:
+            region_label = REGIONS.get(pred["region"], pred["region"])
+            resultat = pred.get("resultat", "indeterminee")
+            score    = pred.get("precision_score") or 0.0
+            icone_res = {"realisee": "✅", "partiellement_realisee": "🟡",
+                         "non_realisee": "❌", "indeterminee": "❓"}.get(resultat, "❓")
+            date_v = (pred.get("date_verification") or "")[:10] or "N/A"
+
+            with st.expander(f"{icone_res} {region_label} | {score:.0%} | {date_v}"):
+                st.markdown(f"**Prédiction :** {pred.get('prediction', '')}")
+                st.markdown(f"**Résultat :** {resultat.replace('_', ' ')}")
+                st.markdown(f"**Explication :** {pred.get('explication', '')}")
+                st.markdown(f"**Score précision :** {score:.0%}")
+                st.markdown(f"**Leçons :** {pred.get('lecons', '')}")
+
+                if not pred.get("tweet_id_bilan"):
+                    if st.button("📋 Générer post bilan", key=f"bilan_{pred['id']}"):
+                        generer_bilan_prediction(
                             pred_id=pred["id"],
                             region=pred["region"],
-                            prediction=pred["prediction"],
-                            probabilite=pred["probabilite"],
-                            horizon=pred["horizon_jours"],
-                            raisonnement=pred.get("raisonnement", ""),
-                            critere=pred.get("critere_verification", "")
+                            prediction=pred.get("prediction", ""),
+                            resultat=resultat,
+                            explication=pred.get("explication", ""),
+                            score=score,
+                            lecons=pred.get("lecons", "")
                         )
-                        st.success("Post prédiction créé !")
+                        st.success("Post bilan créé !")
                         st.rerun()
 
 # ============================================================
@@ -508,20 +540,20 @@ with tab_engagement:
                 "Style":       STYLES.get(s["style"], s["style"]),
                 "Thread":      "🧵 Oui" if s["is_thread"] else "📝 Non",
                 "Posts":       s["nb_posts"],
-                "Moy. Likes":  f"{s['avg_likes']:.1f}",
-                "Moy. RT":     f"{s['avg_retweets']:.1f}",
-                "Score moy.":  f"{s['avg_score']:.1f}",
+                "Moy. Likes":  f"{s['avg_likes'] or 0:.1f}",
+                "Moy. RT":     f"{s['avg_retweets'] or 0:.1f}",
+                "Score moy.":  f"{s['avg_score'] or 0:.1f}",
             })
 
         df = pd.DataFrame(rows)
-        st.dataframe(df, use_container_width=True)
+        st.dataframe(df)
 
         # Graphique par région
         if len(rows) > 1:
             fig, ax = plt.subplots(figsize=(8, 3))
             regions_uniq = list({r["Région"] for r in rows})
             scores = [
-                sum(s["avg_score"] for s in stats if REGIONS.get(s["region"]) == r) /
+                sum((s["avg_score"] or 0) for s in stats if REGIONS.get(s["region"]) == r) /
                 max(1, sum(1 for s in stats if REGIONS.get(s["region"]) == r))
                 for r in regions_uniq
             ]

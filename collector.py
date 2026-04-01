@@ -23,13 +23,6 @@ from datetime import datetime
 
 from database import sauvegarder_article, init_db
 
-try:
-    from config import RSS_SOURCES, RSS_SOURCES_GLOBALES
-except ImportError:
-    # Définition directe si config.py absent (ex. CI/CD)
-    RSS_SOURCES = {}
-    RSS_SOURCES_GLOBALES = {}
-
 # ============================================================
 # SOURCES RSS — UKRAINE
 # ✓ = vérifiée fonctionnelle | ★ = nouvelle source ajoutée

@@ -146,7 +146,7 @@ def collecter_terrain_region(region, sources):
                 continue
 
             nouveaux = 0
-            for entry in feed.entries[:20]:  # Max 20 entrées terrain (plus court)
+            for i, entry in enumerate(feed.entries[:20]):  # Max 20 entrées terrain
                 titre   = entry.get("title", "")[:500]
                 url_s   = entry.get("link", "")
                 contenu = entry.get("summary", entry.get("description", ""))[:2000]
@@ -155,8 +155,8 @@ def collecter_terrain_region(region, sources):
                 if not titre:
                     continue
 
-                # Priorité : les 5 premières entrées sont les plus récentes
-                priorite = max(0, 5 - feed.entries.index(entry)) if entry in feed.entries else 0
+                # Priorité : les 5 premières entrées (les plus récentes) ont priorité max
+                priorite = max(0, 5 - i)
 
                 sauvegarder_signal_terrain(
                     source_name=nom_source,

@@ -408,6 +408,19 @@ def get_predictions_actives():
     return rows
 
 
+def get_predictions_verifiees(limit=20):
+    """Retourne les prédictions déjà vérifiées, les plus récentes en premier."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT * FROM predictions
+        WHERE statut = 'verifiee'
+        ORDER BY date_verification DESC
+        LIMIT ?
+    """, (limit,)).fetchall()
+    conn.close()
+    return rows
+
+
 def get_predictions_echeance():
     """Retourne les prédictions dont l'échéance est passée et non encore vérifiées."""
     conn = get_connection()
