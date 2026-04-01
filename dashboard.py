@@ -12,7 +12,7 @@ from database import (
     init_db, get_articles_par_region, get_toutes_analyses,
     get_posts_brouillons, get_predictions_actives, get_predictions_verifiees,
     marquer_post_publie, marquer_post_rejete, supprimer_post,
-    supprimer_prediction,
+    supprimer_prediction, update_post_contenu, get_editorial_review,
     get_stats_engagement, get_dernieres_alertes, compter_articles
 )
 from writer import (
@@ -568,6 +568,52 @@ with tab_posts:
                     )
                     couleur_count = "🔴" if len(texte) > 280 else "🟢"
                     st.caption(f"{couleur_count} {len(texte)} caractères")
+
+                # --- Rapport éditorial ---
+                review = get_editorial_review(post["id"])
+                if review:
+                    score_g  = review.get("score_global", 0)
+                    verdict  = review.get("verdict", "?")
+                    v_color  = {"publier": "🟢", "ameliorer": "🟡", "rejeter": "🔴"}.get(verdict, "⚪")
+                    v_label  = {"publier": "Prêt à publier", "ameliorer": "À améliorer", "rejeter": "À rejeter"}.get(verdict, verdict)
+
+                    with st.expander(f"{v_color} Rapport éditorial — {v_label} ({score_g}/100)"):
+                        c1, c2, c3, c4 = st.columns(4)
+
+                        fc = review.get("fact_check", {})
+                        fc_icon = {"verified": "✅", "uncertain": "⚠️", "contradiction": "❌"}.get(fc.get("score"), "❓")
+                        c1.metric("Fact-check", f"{fc_icon} {fc.get('score','?')}")
+                        c1.caption(fc.get("details", ""))
+
+                        tc = review.get("tone_check", {})
+                        tc_icon = {"ok": "✅", "weak": "⚠️", "soft": "❌"}.get(tc.get("score"), "❓")
+                        c2.metric("Ton", f"{tc_icon} {tc.get('score','?')}")
+                        c2.caption(tc.get("details", ""))
+
+                        sc = review.get("style_check", {})
+                        c3.metric("Style", f"{sc.get('score', '?')}/100")
+                        c3.caption(f"Accroche : {sc.get('accroche','')[:60]}")
+
+                        dc = review.get("doublon_check", {})
+                        dc_icon = {"original": "✅", "similar": "⚠️", "duplicate": "❌"}.get(dc.get("score"), "❓")
+                        c4.metric("Doublon", f"{dc_icon} {dc.get('score','?')}")
+                        c4.caption(dc.get("details", "")[:60])
+
+                        version_amel = review.get("version_amelioree")
+                        if version_amel:
+                            st.markdown("**✏️ Version améliorée proposée :**")
+                            st.text_area("", value=version_amel, height=120, key=f"amel_{post['id']}")
+                            if st.button("⬆️ Utiliser cette version", key=f"use_amel_{post['id']}"):
+                                import json as _json
+                                try:
+                                    old_data = _json.loads(post["contenu"])
+                                    old_data["texte"] = version_amel
+                                    nouveau_contenu = _json.dumps(old_data, ensure_ascii=False)
+                                except Exception:
+                                    nouveau_contenu = _json.dumps({"type": "post", "texte": version_amel}, ensure_ascii=False)
+                                update_post_contenu(post["id"], nouveau_contenu)
+                                st.success("✅ Contenu mis à jour !")
+                                st.rerun()
 
                 col_x, col_pub, col_rej, col_sup = st.columns(4)
                 with col_x:

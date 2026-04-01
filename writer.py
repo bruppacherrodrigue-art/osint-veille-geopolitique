@@ -490,9 +490,17 @@ def generer_post_pour_region(region, style="platon_punk", format_type="post", lo
                 ensure_ascii=False
             )
 
-        sauvegarder_post(region=region, contenu=contenu_final, style=style)
+        post_id = sauvegarder_post(region=region, contenu=contenu_final, style=style)
         print(f"  ✅ Post {format_type} ({style}) généré pour {region}")
-        return contenu_final
+
+        # Vérification éditoriale automatique (Haiku — rapide)
+        try:
+            from editor import verifier_post
+            verifier_post(post_id)
+        except Exception as e_edit:
+            print(f"  ⚠️  Editor ignoré : {e_edit}")
+
+        return post_id
 
     except Exception as e:
         print(f"  ⚠️  Erreur génération post {region} : {e}")

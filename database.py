@@ -3,6 +3,7 @@ database.py — Gestion de la base de données SQLite
 Crée et gère veille.db avec 7 tables.
 """
 
+import json
 import sqlite3
 from datetime import datetime
 
@@ -65,9 +66,16 @@ def init_db():
             style            TEXT,
             date_creation    TEXT,
             date_publication TEXT,
-            tweet_id         TEXT
+            tweet_id         TEXT,
+            editorial_review TEXT
         )
     """)
+    # Migration : ajouter la colonne si elle n'existe pas encore (DB existante)
+    try:
+        c.execute("ALTER TABLE posts_x ADD COLUMN editorial_review TEXT")
+        conn.commit()
+    except Exception:
+        pass  # Colonne déjà présente
 
     # --- Métriques d'engagement X ---
     c.execute("""
@@ -256,14 +264,16 @@ def get_toutes_analyses(limit=100):
 # ============================================================
 
 def sauvegarder_post(region, contenu, style, statut="brouillon"):
-    """Sauvegarde un post rédigé."""
+    """Sauvegarde un post rédigé. Retourne l'id du post créé."""
     conn = get_connection()
-    conn.execute("""
+    cur = conn.execute("""
         INSERT INTO posts_x (region, contenu, statut, style, date_creation)
         VALUES (?, ?, ?, ?, ?)
     """, (region, contenu, statut, style, datetime.now().isoformat()))
+    post_id = cur.lastrowid
     conn.commit()
     conn.close()
+    return post_id
 
 
 def get_posts_brouillons(region=None):
@@ -296,6 +306,55 @@ def get_posts_recents(region, limit=10):
     """, (region, limit)).fetchall()
     conn.close()
     return [r["contenu"] for r in rows]
+
+
+def update_editorial_review(post_id, review_json):
+    """Sauvegarde le rapport éditorial d'un post."""
+    conn = get_connection()
+    conn.execute(
+        "UPDATE posts_x SET editorial_review = ? WHERE id = ?",
+        (review_json, post_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_editorial_review(post_id):
+    """Retourne le rapport éditorial d'un post (dict ou None)."""
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT editorial_review FROM posts_x WHERE id = ?", (post_id,)
+    ).fetchone()
+    conn.close()
+    if row and row["editorial_review"]:
+        try:
+            return json.loads(row["editorial_review"])
+        except Exception:
+            return None
+    return None
+
+
+def update_post_contenu(post_id, nouveau_contenu):
+    """Remplace le contenu d'un post (pour 'Utiliser la version améliorée')."""
+    conn = get_connection()
+    conn.execute(
+        "UPDATE posts_x SET contenu = ? WHERE id = ?",
+        (nouveau_contenu, post_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_posts_publies_recents(limit=20):
+    """Retourne les N derniers posts publiés (pour anti-doublon)."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT id, region, contenu, style FROM posts_x
+        WHERE statut = 'publié'
+        ORDER BY date_publication DESC LIMIT ?
+    """, (limit,)).fetchall()
+    conn.close()
+    return rows
 
 
 def marquer_post_publie(post_id, tweet_id=None):
