@@ -36,7 +36,7 @@ def analyser_signaux_region(region):
 
     # Construire le texte des signaux pour Haiku
     signaux_texte = "\n".join([
-        f"[{s['source_name']} | fiabilité {s['fiabilite']:.0%}] {s['titre']}\n{s['contenu'][:300]}"
+        f"[{s['source_name']} | fiabilité {float(s['fiabilite']):.0%}] {s['titre']}\n{s['contenu'][:300]}"
         for s in signaux[:20]  # Max 20 signaux
     ])
 
