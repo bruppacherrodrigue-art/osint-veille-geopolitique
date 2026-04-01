@@ -407,6 +407,8 @@ with tab_pred:
         for pred in predictions:
             region_label = REGIONS.get(pred["region"], pred["region"])
             prob    = pred.get("probabilite") or 0.0
+            if prob > 1:  # Claude a retourné 85 au lieu de 0.85
+                prob = prob / 100
             horizon = pred.get("horizon_jours") or 0
             echeance = (pred.get("date_echeance") or "")[:10] or "N/A"
             categorie = pred.get("categorie", "")
@@ -445,6 +447,8 @@ with tab_pred:
             region_label = REGIONS.get(pred["region"], pred["region"])
             resultat = pred.get("resultat", "indeterminee")
             score    = pred.get("precision_score") or 0.0
+            if score > 1:
+                score = score / 100
             icone_res = {"realisee": "✅", "partiellement_realisee": "🟡",
                          "non_realisee": "❌", "indeterminee": "❓"}.get(resultat, "❓")
             date_v = (pred.get("date_verification") or "")[:10] or "N/A"

@@ -113,11 +113,16 @@ def generer_predictions_region(region):
         nb = 0
 
         for pred in predictions:
+            prob = pred.get("probabilite", 0.5)
+            if prob > 1:  # Claude a retourné 85 au lieu de 0.85 — normaliser
+                prob = prob / 100
+            prob = max(0.0, min(1.0, prob))  # Clamp entre 0 et 1
+
             sauvegarder_prediction(
                 region=region,
                 prediction=pred.get("prediction", ""),
                 horizon_jours=pred.get("horizon_jours", 30),
-                probabilite=pred.get("probabilite", 0.5),
+                probabilite=prob,
                 raisonnement=pred.get("raisonnement", ""),
                 critere=pred.get("critere_verification", ""),
                 categorie=pred.get("categorie", "politique"),
