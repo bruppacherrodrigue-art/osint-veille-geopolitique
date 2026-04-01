@@ -145,9 +145,13 @@ with st.sidebar:
 
     if st.button("✍️ Générer posts X", use_container_width=True):
         with st.spinner("Génération en cours..."):
-            generer_tous_posts(style=style_post, format_type=format_post)
-        st.success("✅ Posts générés !")
-        st.rerun()
+            resultats = generer_tous_posts(style=style_post, format_type=format_post)
+        nb_ok = sum(1 for v in resultats.values() if v) if resultats else 0
+        if nb_ok > 0:
+            st.success(f"✅ {nb_ok} post(s) générés !")
+            st.rerun()
+        else:
+            st.error("❌ Aucun post généré — lance d'abord 🤖 Analyser avec Claude pour avoir des analyses disponibles.")
 
     st.divider()
 

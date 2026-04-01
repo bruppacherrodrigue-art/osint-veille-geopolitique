@@ -318,6 +318,14 @@ def extraire_texte_post(contenu_json):
     return str(data)
 
 
+def _echapper_accolades(texte):
+    """
+    Échappe les accolades { } pour éviter les conflits avec str.format().
+    Les analyses Claude contiennent souvent des { } dans leur contenu JSON.
+    """
+    return texte.replace("{", "{{").replace("}", "}}")
+
+
 def _formater_analyses(analyses):
     """Formate les analyses pour injection dans les prompts."""
     if not analyses:
@@ -337,9 +345,10 @@ def _formater_analyses(analyses):
                 f"Tendances : {tendances}"
             )
         except Exception:
-            lignes.append(a.get("tendances", "")[:200])
+            lignes.append(str(a.get("tendances", ""))[:200])
 
-    return "\n\n---\n\n".join(lignes)
+    texte = "\n\n---\n\n".join(lignes)
+    return _echapper_accolades(texte)  # Évite KeyError dans .format()
 
 
 def _formater_posts_existants(posts):
@@ -350,7 +359,8 @@ def _formater_posts_existants(posts):
     for p in posts[:5]:
         texte = extraire_texte_post(p)
         extraits.append(f"• {texte[:150]}...")
-    return "\n".join(extraits)
+    texte = "\n".join(extraits)
+    return _echapper_accolades(texte)  # Évite KeyError dans .format()
 
 
 # ============================================================
