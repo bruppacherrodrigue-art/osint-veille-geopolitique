@@ -10,10 +10,15 @@ from datetime import datetime
 DB_PATH = "veille.db"
 
 
+def _dict_factory(cursor, row):
+    """Convertit chaque ligne SQLite en dict — permet d'utiliser .get() partout."""
+    return {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
+
+
 def get_connection():
-    """Retourne une connexion SQLite avec row_factory pour accès par nom de colonne."""
+    """Retourne une connexion SQLite avec row_factory dict."""
     conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn.row_factory = _dict_factory
     return conn
 
 
