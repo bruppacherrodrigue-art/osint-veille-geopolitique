@@ -629,16 +629,24 @@ with tab_posts:
                                 import json as _json
                                 try:
                                     old_data = _json.loads(post["contenu"])
-                                    old_data["texte"] = version_amel
+                                    if "texte" in old_data:
+                                        old_data["texte"] = version_amel
+                                    elif "tweets" in old_data:
+                                        old_data["tweets"] = [version_amel]
+                                    else:
+                                        old_data["texte"] = version_amel
                                     nouveau_contenu = _json.dumps(old_data, ensure_ascii=False)
                                 except Exception:
                                     nouveau_contenu = _json.dumps({"type": "post", "texte": version_amel}, ensure_ascii=False)
                                 update_post_contenu(post["id"], nouveau_contenu)
                                 # Relancer l'analyse éditoriale sur la version améliorée
-                                with st.spinner("🔄 Révision éditoriale en cours..."):
-                                    from editor import verifier_post
-                                    verifier_post(post["id"])
-                                st.success("✅ Contenu mis à jour et rapport révisé !")
+                                try:
+                                    with st.spinner("🔄 Révision éditoriale en cours..."):
+                                        from editor import verifier_post
+                                        verifier_post(post["id"])
+                                    st.success("✅ Contenu mis à jour et rapport révisé !")
+                                except Exception as _e:
+                                    st.warning(f"⚠️ Contenu mis à jour mais révision échouée : {_e}")
                                 st.rerun()
 
                 col_x, col_pub, col_rej, col_sup = st.columns(4)
