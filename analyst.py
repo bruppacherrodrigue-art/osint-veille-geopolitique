@@ -35,28 +35,42 @@ SCRAPER_DISPONIBLE = False  # NE PAS réactiver ici
 
 PROMPT_ANALYSE = """Tu es un analyste géopolitique senior francophone spécialisé en OSINT.
 
-CONTEXTE MÉMORISÉ (7 derniers jours) :
+⛔ RÈGLE ABSOLUE — ANTI-HALLUCINATION :
+Tu ne peux utiliser QUE les informations présentes dans les articles ci-dessous.
+N'utilise PAS ta connaissance générale sur la région, l'histoire ou les acteurs.
+Si un fait n'est pas dans les articles fournis, il n'existe pas pour toi.
+Si les résumés sont trop courts pour produire une analyse solide, indique-le explicitement.
+
+CONTEXTE MÉMORISÉ (7 derniers jours — pour orientation uniquement, ne pas citer comme source) :
 {contexte_memoire}
 
-BRIEFING TERRAIN RÉCENT :
+BRIEFING TERRAIN RÉCENT (signaux breaking — pour orientation uniquement) :
 {briefing_terrain}
 
 ARTICLES À ANALYSER — Région : {region} | Cluster : {theme}
 {articles_texte}
 
-Produis une analyse structurée en JSON :
+Produis une analyse structurée en JSON basée UNIQUEMENT sur les articles ci-dessus.
+Pour chaque fait clé, indique la source entre crochets : "[NomSource] fait observé".
+
 {{
-  "faits_cles": ["fait 1", "fait 2", "fait 3"],
-  "acteurs_principaux": ["acteur 1", "acteur 2"],
-  "tendances": "tendances observées en 2-3 phrases",
-  "implications": "implications géopolitiques en 2-3 phrases",
+  "theme": "{theme}",
+  "faits_cles": [
+    "[NomSource] fait tiré directement de cet article",
+    "[AutreSource] autre fait directement cité ou paraphrasé"
+  ],
+  "acteurs_principaux": ["acteur mentionné dans les articles"],
+  "tendances": "tendances observées EN SE BASANT UNIQUEMENT sur les articles (2-3 phrases)",
+  "implications": "implications déduites des faits des articles (2-3 phrases)",
   "niveau_alerte": "VERT|ORANGE|ROUGE",
-  "signaux_faibles": ["signal 1", "signal 2"],
-  "a_surveiller": "point de vigilance principal"
+  "signaux_faibles": ["signal mentionné dans les articles, pas inventé"],
+  "a_surveiller": "point de vigilance tiré directement d'un article",
+  "sources_utilisees": ["NomSource1", "NomSource2"],
+  "qualite_sources": "SUFFISANTE|INSUFFISANTE — indique INSUFFISANTE si les résumés sont trop courts"
 }}
 
-Sois factuel, précis, et cite les sources quand pertinent.
-Niveau alerte : VERT = stable, ORANGE = à surveiller, ROUGE = critique."""
+Niveau alerte : VERT = stable, ORANGE = à surveiller, ROUGE = critique.
+Si qualite_sources = INSUFFISANTE, mets niveau_alerte = VERT et indique-le dans tendances."""
 
 
 def analyser_cluster(region, theme, articles, contexte_memoire, briefing_terrain):
@@ -65,7 +79,13 @@ def analyser_cluster(region, theme, articles, contexte_memoire, briefing_terrain
     Retourne le JSON d'analyse ou None en cas d'échec.
     """
     articles_texte = "\n\n".join([
-        f"SOURCE : {a['source_name']}\nTITRE : {a['titre']}\nRÉSUMÉ : {a['resume']}"
+        "SOURCE : {src}\nDATE : {date}\nTITRE : {titre}\nRÉSUMÉ : {resume}\nURL : {url}".format(
+            src=a.get("source_name", "Inconnu"),
+            date=(a.get("date_pub") or a.get("date_collecte") or "N/A")[:10],
+            titre=a.get("titre", ""),
+            resume=a.get("resume", "(résumé absent — analyser uniquement le titre)"),
+            url=a.get("url", "N/A"),
+        )
         for a in articles
     ])
 
@@ -94,6 +114,12 @@ def analyser_cluster(region, theme, articles, contexte_memoire, briefing_terrain
         data = json.loads(texte)
         data["theme"] = theme
         data["nb_articles"] = len(articles)
+
+        qualite = data.get("qualite_sources", "SUFFISANTE")
+        if qualite == "INSUFFISANTE":
+            print(f"    ⚠️  Sources insuffisantes pour '{theme}' — analyse ignorée")
+            return None
+
         return data
 
     except json.JSONDecodeError as e:

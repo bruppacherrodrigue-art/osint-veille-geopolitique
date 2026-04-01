@@ -338,7 +338,10 @@ def _echapper_accolades(texte):
 
 
 def _formater_analyses(analyses):
-    """Formate les analyses pour injection dans les prompts."""
+    """
+    Formate les analyses pour injection dans les prompts writer.
+    Inclut les citations de sources pour forcer l'ancrage factuel.
+    """
     if not analyses:
         return "Aucune analyse récente disponible."
 
@@ -346,13 +349,19 @@ def _formater_analyses(analyses):
     for a in analyses:
         try:
             contenu = json.loads(a["contenu"])
-            faits = contenu.get("faits_cles", [])
+            faits    = contenu.get("faits_cles", [])
             tendances = contenu.get("tendances", "")
-            niveau = contenu.get("niveau_alerte", "VERT")
-            date = a["date_analyse"][:10]
+            niveau   = contenu.get("niveau_alerte", "VERT")
+            sources  = contenu.get("sources_utilisees", [])
+            date     = a["date_analyse"][:10]
+
+            # Les faits contiennent déjà "[Source] fait" — les passer tels quels
+            faits_texte = "\n".join(f"  • {f}" for f in faits[:5])
+            sources_texte = ", ".join(sources) if sources else "sources non listées"
+
             lignes.append(
-                f"[{date} | Alerte {niveau}]\n"
-                f"Faits clés : {'; '.join(faits[:3])}\n"
+                f"[{date} | Alerte {niveau} | Sources : {sources_texte}]\n"
+                f"Faits vérifiés :\n{faits_texte}\n"
                 f"Tendances : {tendances}"
             )
         except Exception:

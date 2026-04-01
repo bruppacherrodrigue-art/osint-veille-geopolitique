@@ -472,6 +472,16 @@ with tab_analyses:
                     if surveiller:
                         st.warning(f"👁️ **À surveiller :** {surveiller}")
 
+                    # Traçabilité des sources
+                    sources_u = data.get("sources_utilisees", [])
+                    qualite   = data.get("qualite_sources", "")
+                    if sources_u or qualite:
+                        badge_q = "✅" if qualite != "INSUFFISANTE" else "⚠️"
+                        st.caption(
+                            f"{badge_q} Sources : {', '.join(sources_u) if sources_u else 'N/A'}"
+                            + (f" — Qualité : {qualite}" if qualite else "")
+                        )
+
                 except Exception:
                     st.text(analyse["contenu"][:500])
 
