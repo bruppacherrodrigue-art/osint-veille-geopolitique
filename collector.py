@@ -38,8 +38,8 @@ SOURCES_UKRAINE = {
     "Kyiv Post":               "https://www.kyivpost.com/feed",                         # Quotidien UA anglophone
     "The Moscow Times":        "https://www.themoscowtimes.com/rss/news",              # Média russe exilé indépendant
 
-    # ── Score 6 — Perspective état russe (narratif officiel) ──
-    "TASS (EN)":               "https://tass.com/rss/v2.xml",                          # ⚠️ Propagande d'état russe — pour narratif officiel uniquement
+    # ── Score 6 ────────────────────────────────────────────────
+    "TASS (EN)":               "https://tass.com/rss/v2.xml",                          # Agence d'état russe
 }
 
 # ============================================================
@@ -67,9 +67,9 @@ SOURCES_MOYEN_ORIENT = {
     "Arab News":               "https://www.arabnews.com/rss",                         # Perspective saoudienne/Golfe
     "France 24 ME":            "https://www.france24.com/en/middle-east/rss",          # Chaîne française internationale
 
-    # ── Score 6 — Perspective état iranien (narratif officiel) ─
-    "IRNA (EN)":               "https://en.irna.ir/rss",                               # ⚠️ Agence d'état iranien — narratif officiel
-    "PressTV":                 "https://www.presstv.ir/rss",                           # ⚠️ Propagande iranienne — pour narratif officiel
+    # ── Score 6 ────────────────────────────────────────────────
+    "IRNA (EN)":               "https://en.irna.ir/rss",                               # Agence d'état iranien
+    "PressTV":                 "https://www.presstv.ir/rss",                           # Média iranien
 }
 
 # ============================================================
@@ -110,7 +110,7 @@ SOURCES_GLOBALES = {
     "AP News World":           "https://rsshub.app/apnews/topics/world-news",          # Fil mondial AP (Reuters remplacé — mort)
     "Le Monde Diplomatique":   "https://www.monde-diplomatique.fr/rss",                # Analyse profonde française
     "Foreign Policy":          "https://foreignpolicy.com/feed/",                      # Analyse internationale US
-    "BBC World":               "https://feeds.bbci.co.uk/news/world/rss.xml",          # ⚠️ Filtrage anti-hors-sujet activé
+    "BBC World":               "https://feeds.bbci.co.uk/news/world/rss.xml",          # Filtrage hors-sujet activé
 }
 
 # Dictionnaire principal utilisé par le dashboard
@@ -137,7 +137,7 @@ PERSPECTIVES_SOURCES = {
     "Euromaidan Press":        "presse civile ukrainienne",
     "Kyiv Post":               "quotidien ukrainien anglophone",
     "The Moscow Times":        "média russe exilé indépendant",
-    "TASS (EN)":               "⚠️ agence d'état russe",
+    "TASS (EN)":               "agence d'état russe",
     # Moyen-Orient
     "Al Jazeera (EN)":         "chaîne arabe (Qatar)",
     "Al-Monitor":              "analyse ME indépendante",
@@ -151,8 +151,8 @@ PERSPECTIVES_SOURCES = {
     "RFI Moyen-Orient":        "radio française internationale",
     "Arab News":               "presse saoudienne",
     "France 24 ME":            "chaîne française internationale",
-    "IRNA (EN)":               "⚠️ agence d'état iranien",
-    "PressTV":                 "⚠️ propagande iranienne",
+    "IRNA (EN)":               "agence d'état iranien",
+    "PressTV":                 "média iranien",
     # OTAN
     "ECFR":                    "think-tank européen",
     "Atlantic Council":        "think-tank transatlantique",
@@ -165,7 +165,7 @@ PERSPECTIVES_SOURCES = {
     "SIPRI":                   "institut armement Stockholm",
     "RAND Corporation":        "think-tank politique publique US",
     "Defense News":            "presse industrie défense",
-    "NATO Newsroom":           "⚠️ communication officielle NATO",
+    "NATO Newsroom":           "communication officielle NATO",
     "NATO Review":             "publication officielle NATO",
     "RFI Europe":              "radio française internationale",
     "France 24 Europe":        "chaîne française internationale",

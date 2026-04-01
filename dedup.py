@@ -14,23 +14,19 @@ except ImportError:
     CLAUDE_MODEL_FAST = "claude-haiku-4-5-20251001"
 
 
-def prepare_clustered_analysis(articles, region, max_articles=8):
+def prepare_clustered_analysis(articles, region, max_articles=20):
     """
     Regroupe les articles par événement/thème via Haiku, puis retourne
     la liste des clusters à analyser.
-
-    FIX PERFORMANCE : max_articles limité à 8 (au lieu de 15) pour réduire
-    le nombre d'appels Sonnet en aval.
-
+    Vise minimum 2-3 sources par cluster pour une analyse multi-perspectives.
     Retourne une liste de clusters, chaque cluster étant une liste d'articles.
     """
     if not articles:
         return []
 
-    # Limiter à max_articles pour contrôler les coûts
     articles_limites = list(articles)[:max_articles]
 
-    # Construire le texte de contexte pour le clustering
+    # Construire le texte avec source + titre pour le clustering
     articles_texte = "\n".join([
         f"{i+1}. [{a['source_name']}] {a['titre']}"
         for i, a in enumerate(articles_limites)
@@ -40,25 +36,31 @@ def prepare_clustered_analysis(articles, region, max_articles=8):
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         reponse = client.messages.create(
             model=CLAUDE_MODEL_FAST,
-            max_tokens=400,
+            max_tokens=800,
             messages=[{
                 "role": "user",
                 "content": f"""Voici {len(articles_limites)} articles sur la région '{region}' :
 
 {articles_texte}
 
-Regroupe ces articles par événement/thème principal.
+Regroupe ces articles par événement ou thème géopolitique principal.
+OBJECTIF : chaque cluster doit idéalement regrouper plusieurs sources couvrant le MÊME événement.
+Si plusieurs sources parlent du même événement (même si angles différents), elles vont dans le MÊME cluster.
+
 Retourne UNIQUEMENT un JSON valide, sans explication :
 {{
   "clusters": [
-    {{"theme": "...", "indices": [1, 3, 5]}},
-    {{"theme": "...", "indices": [2, 4]}}
+    {{"theme": "description courte de l'événement", "indices": [1, 3, 5, 8]}},
+    {{"theme": "autre événement", "indices": [2, 4, 7]}}
   ]
 }}
 
-Les indices correspondent aux numéros des articles (1-based).
-Chaque article doit apparaître dans UN SEUL cluster.
-Maximum 5 clusters."""
+Règles :
+- Les indices correspondent aux numéros des articles (1-based).
+- Chaque article apparaît dans UN SEUL cluster.
+- Maximum 5 clusters.
+- Préfère des clusters avec 3-5 articles plutôt que beaucoup de clusters à 1 article.
+- Si un article est vraiment isolé sans lien avec les autres, crée un cluster seul."""
             }]
         )
 

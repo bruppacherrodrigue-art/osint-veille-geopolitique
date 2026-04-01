@@ -11,6 +11,8 @@ CORRECTIONS PERFORMANCE APPLIQUÉES :
 
 import json
 import os
+import re
+import requests
 from datetime import datetime
 import anthropic
 
@@ -32,10 +34,32 @@ except ImportError:
     ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
     CLAUDE_MODEL      = "claude-sonnet-4-20250514"
 
-# FIX PERFORMANCE #1 : Tavily DÉSACTIVÉ dans analyst.py
-# Le scraper Tavily est redondant ici (on analyse des articles déjà collectés).
-# Tavily reste utilisé dans predictions.py uniquement.
-SCRAPER_DISPONIBLE = False  # NE PAS réactiver ici
+def _fetch_article_content(url, timeout=6):
+    """
+    Récupère le contenu complet d'un article depuis son URL.
+    Utilise requests + extraction HTML basique (gratuit, sans API).
+    Retourne le texte enrichi (max 1500 chars) ou None si échec.
+    """
+    if not url or url == "N/A":
+        return None
+    try:
+        headers = {"User-Agent": "Mozilla/5.0 (compatible; OSINTBot/1.0)"}
+        resp = requests.get(url, timeout=timeout, headers=headers)
+        if resp.status_code != 200:
+            return None
+        # Extraction HTML basique sans dépendances externes
+        text = resp.text
+        # Supprimer les balises script/style
+        text = re.sub(r"<(script|style)[^>]*>.*?</(script|style)>", " ", text, flags=re.DOTALL | re.IGNORECASE)
+        # Supprimer toutes les balises HTML
+        text = re.sub(r"<[^>]+>", " ", text)
+        # Nettoyer les entités HTML courantes
+        text = text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&nbsp;", " ").replace("&quot;", '"')
+        # Normaliser les espaces
+        text = re.sub(r"\s+", " ", text).strip()
+        return text[:1500] if len(text) > 100 else None
+    except Exception:
+        return None
 
 PROMPT_ANALYSE = """Tu es un analyste géopolitique senior francophone spécialisé en OSINT.
 
@@ -45,12 +69,9 @@ N'utilise PAS ta connaissance générale sur la région, l'histoire ou les acteu
 Si un fait n'est pas dans les articles fournis, il n'existe pas pour toi.
 Si les résumés sont trop courts pour produire une analyse solide, indique-le explicitement.
 
-📌 GESTION DES BIAIS DE SOURCES :
+📌 PERSPECTIVES MULTIPLES :
 Chaque article indique sa perspective entre crochets [ex: think-tank occidental, agence d'état russe].
-- Les sources marquées ⚠️ (TASS, IRNA, PressTV, NATO officiel) véhiculent des narratifs officiels — cite-les
-  explicitement comme tels et ne les traite pas comme des faits vérifiés.
-- Quand plusieurs perspectives divergent sur un même fait, note les deux versions séparément.
-- Privilégie les sources indépendantes et les think-tanks pour les faits factuels.
+Quand plusieurs sources donnent des versions différentes d'un même fait, présente les deux angles.
 
 CONTEXTE MÉMORISÉ (7 derniers jours — pour orientation uniquement, ne pas citer comme source) :
 {contexte_memoire}
@@ -89,17 +110,29 @@ def analyser_cluster(region, theme, articles, contexte_memoire, briefing_terrain
     Analyse un cluster d'articles avec Claude Sonnet.
     Retourne le JSON d'analyse ou None en cas d'échec.
     """
-    articles_texte = "\n\n".join([
-        "SOURCE : {src} [{perspective}]\nDATE : {date}\nTITRE : {titre}\nRÉSUMÉ : {resume}\nURL : {url}".format(
-            src=a.get("source_name", "Inconnu"),
-            perspective=PERSPECTIVES_SOURCES.get(a.get("source_name", ""), "perspective inconnue"),
-            date=(a.get("date_pub") or a.get("date_collecte") or "N/A")[:10],
-            titre=a.get("titre", ""),
-            resume=a.get("resume", "(résumé absent — analyser uniquement le titre)"),
-            url=a.get("url", "N/A"),
+    lignes = []
+    for a in articles:
+        resume = a.get("resume", "") or ""
+        url    = a.get("url", "N/A") or "N/A"
+        # Enrichissement : fetch contenu complet si résumé court (< 300 chars)
+        contenu_enrichi = None
+        if len(resume) < 300 and url != "N/A":
+            contenu_enrichi = _fetch_article_content(url)
+        if contenu_enrichi:
+            contenu_final = f"RÉSUMÉ RSS : {resume}\nCONTENU COMPLET : {contenu_enrichi}"
+        else:
+            contenu_final = resume or "(résumé absent — analyser uniquement le titre)"
+        lignes.append(
+            "SOURCE : {src} [{perspective}]\nDATE : {date}\nTITRE : {titre}\n{contenu}\nURL : {url}".format(
+                src=a.get("source_name", "Inconnu"),
+                perspective=PERSPECTIVES_SOURCES.get(a.get("source_name", ""), "perspective inconnue"),
+                date=(a.get("date_pub") or a.get("date_collecte") or "N/A")[:10],
+                titre=a.get("titre", ""),
+                contenu=contenu_final,
+                url=url,
+            )
         )
-        for a in articles
-    ])
+    articles_texte = "\n\n".join(lignes)
 
     prompt = PROMPT_ANALYSE.format(
         contexte_memoire=contexte_memoire or "Aucun contexte mémorisé.",
@@ -169,9 +202,7 @@ def analyser_region(region):
     articles = deduplifier_articles(articles)
     print(f"    📰 {len(articles)} article(s) après déduplication")
 
-    # FIX PERFORMANCE #2 : limite à 8 articles
-    # Cela réduit le nombre de clusters et donc d'appels Sonnet
-    clusters = prepare_clustered_analysis(articles, region, max_articles=8)
+    clusters = prepare_clustered_analysis(articles, region, max_articles=20)
     if not clusters:
         print(f"    ℹ️  Aucun cluster généré pour {region}")
         return []
