@@ -16,6 +16,12 @@ from database import (
 from alerts import notifier_breaking
 
 try:
+    from writer import HASHTAGS_PAR_REGION, HASHTAGS_COMMUNS
+except ImportError:
+    HASHTAGS_PAR_REGION = {}
+    HASHTAGS_COMMUNS = ["#Géopolitique", "#OSINT", "#AnalyseGéopolitique"]
+
+try:
     from config import ANTHROPIC_API_KEY, CLAUDE_MODEL_FAST, SEUIL_CHALEUR_BREAKING
 except ImportError:
     ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -40,6 +46,8 @@ def analyser_signaux_region(region):
         for s in signaux[:20]  # Max 20 signaux
     ])
 
+    hashtags = " ".join(HASHTAGS_PAR_REGION.get(region, HASHTAGS_COMMUNS))
+
     try:
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
         reponse = client.messages.create(
@@ -53,13 +61,16 @@ Voici les signaux terrain récents :
 
 {signaux_texte}
 
+HASHTAGS DISPONIBLES (choisir 4 à 6 parmi ceux-ci pour le post_breaking) :
+{hashtags}
+
 Analyse et retourne UNIQUEMENT un JSON valide :
 {{
   "chaleur": <entier 0-100, niveau d'urgence global>,
   "resume": "<résumé factuel en 2-3 phrases>",
   "evenements": ["<événement 1>", "<événement 2>", "<événement 3>"],
   "signal_partisan": "<information contradictoire ou biais détecté, ou null>",
-  "post_breaking": "<si chaleur >= 70 : texte d'un post breaking X max 280 caractères, sinon null>"
+  "post_breaking": "<si chaleur >= 70 : texte d'un post breaking X max 280 caractères avec 4 à 6 hashtags de la liste ci-dessus sur une ligne séparée à la fin, sinon null>"
 }}
 
 Critères chaleur :
@@ -68,7 +79,7 @@ Critères chaleur :
 - 60-80 : événement important, alerte modérée
 - 80-100 : événement critique, breaking news
 
-Le post_breaking doit être factuel, percutant, sans hashtags excessifs."""
+Le post_breaking doit être factuel, percutant, avec les hashtags les plus pertinents selon l'événement."""
             }]
         )
 
@@ -124,13 +135,19 @@ def traiter_resultat_terrain(region, resultat):
     # Auto-breaking si chaleur >= seuil
     if chaleur >= SEUIL_CHALEUR_BREAKING and post_breaking:
         print(f"  🔥 BREAKING déclenché ! Chaleur = {chaleur}")
-        sauvegarder_post(
+        post_id = sauvegarder_post(
             region=region,
             contenu=json.dumps({"type": "breaking", "tweets": [post_breaking]},
                                ensure_ascii=False),
             style="breaking",
             statut="brouillon"
         )
+        # Vérification éditoriale automatique
+        try:
+            from editor import verifier_post
+            verifier_post(post_id)
+        except Exception as e_edit:
+            print(f"  ⚠️  Editor ignoré pour breaking : {e_edit}")
         # Notification Discord
         notifier_breaking(region, chaleur, resume)
         print(f"  ✅ Post breaking sauvegardé en brouillon")
