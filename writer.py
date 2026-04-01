@@ -367,7 +367,14 @@ def _formater_posts_existants(posts):
 # GÉNÉRATEURS PRINCIPAUX
 # ============================================================
 
-def generer_post_pour_region(region, style="platon_punk", format_type="post"):
+LONGUEURS_CHARS = {
+    "court":  280,
+    "moyen":  500,
+    "long":  1000,
+}
+
+
+def generer_post_pour_region(region, style="platon_punk", format_type="post", longueur="moyen"):
     """
     Génère un post/thread/article pour une région.
 
@@ -393,6 +400,8 @@ def generer_post_pour_region(region, style="platon_punk", format_type="post"):
     # Récupérer les posts récents pour éviter les répétitions
     posts_recents = get_posts_recents(region, limit=5)
     posts_existants = _formater_posts_existants(posts_recents)
+
+    max_chars = LONGUEURS_CHARS.get(longueur, TWEET_MAX_CHARS)
 
     try:
         client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -420,7 +429,7 @@ def generer_post_pour_region(region, style="platon_punk", format_type="post"):
                 region=region.replace("_", " "),
                 analyses_texte=analyses_texte,
                 hashtags_disponibles=hashtags,
-                max_chars=TWEET_MAX_CHARS
+                max_chars=max_chars
             )
             max_tokens = 1500
 
@@ -431,7 +440,7 @@ def generer_post_pour_region(region, style="platon_punk", format_type="post"):
                     analyses_texte=analyses_texte,
                     posts_existants=posts_existants,
                     hashtags_disponibles=hashtags,
-                    max_chars=TWEET_MAX_CHARS
+                    max_chars=max_chars
                 )
             else:
                 prompt = PROMPT_POST_PLATON_PUNK.format(
@@ -439,7 +448,7 @@ def generer_post_pour_region(region, style="platon_punk", format_type="post"):
                     analyses_texte=analyses_texte,
                     posts_existants=posts_existants,
                     hashtags_disponibles=hashtags,
-                    max_chars=TWEET_MAX_CHARS
+                    max_chars=max_chars
                 )
             max_tokens = 600
 
@@ -550,7 +559,7 @@ def generer_bilan_prediction(pred_id, region, prediction, resultat,
         return None
 
 
-def generer_tous_posts(style="platon_punk", format_type="post", regions=None):
+def generer_tous_posts(style="platon_punk", format_type="post", longueur="moyen", regions=None):
     """
     Génère des posts pour toutes les régions (ou une liste spécifique).
     Retourne un dict résumant les résultats.
@@ -559,12 +568,12 @@ def generer_tous_posts(style="platon_punk", format_type="post", regions=None):
     if regions is None:
         regions = ["ukraine", "moyen_orient", "otan"]
 
-    print(f"\n✍️  Génération posts — style={style} format={format_type}")
+    print(f"\n✍️  Génération posts — style={style} format={format_type} longueur={longueur}")
     resultats = {}
 
     for region in regions:
         print(f"\n  📍 {region.upper().replace('_', ' ')}")
-        post = generer_post_pour_region(region, style=style, format_type=format_type)
+        post = generer_post_pour_region(region, style=style, format_type=format_type, longueur=longueur)
         resultats[region] = post is not None
 
     return resultats

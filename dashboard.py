@@ -26,6 +26,7 @@ from writer import (
     generer_tous_posts, generer_post_pour_region,
     generer_bilan_prediction
 )
+from twitter import poster_sur_x, poster_thread_sur_x
 from memory import afficher_memoire, get_toutes_regions_memoire
 from macro import get_donnees_macro, get_historique_petrole
 
@@ -143,9 +144,17 @@ with st.sidebar:
         key="format_select"
     )
 
+    longueur_post = st.selectbox(
+        "Taille",
+        options=["court", "moyen", "long"],
+        index=1,
+        format_func=lambda x: {"court": "📏 Court (280 car.)", "moyen": "📝 Moyen (500 car.)", "long": "📰 Long (1000 car.)"}[x],
+        key="longueur_select"
+    )
+
     if st.button("✍️ Générer posts X", use_container_width=True):
         with st.spinner("Génération en cours..."):
-            resultats = generer_tous_posts(style=style_post, format_type=format_post)
+            resultats = generer_tous_posts(style=style_post, format_type=format_post, longueur=longueur_post)
         nb_ok = sum(1 for v in resultats.values() if v) if resultats else 0
         if nb_ok > 0:
             st.success(f"✅ {nb_ok} post(s) générés !")
@@ -382,7 +391,21 @@ with tab_posts:
                     )
                     st.caption(f"{len(texte)} caractères")
 
-                col_pub, col_rej, col_sup = st.columns(3)
+                col_x, col_pub, col_rej, col_sup = st.columns(4)
+                with col_x:
+                    if st.button("🐦 Poster sur X", key=f"x_{post['id']}"):
+                        if type_post == "thread":
+                            tweets_x = extraire_tweets(post["contenu"])
+                            tid, err = poster_thread_sur_x(tweets_x)
+                        else:
+                            texte_x = extraire_texte_post(post["contenu"])
+                            tid, err = poster_sur_x(texte_x)
+                        if tid:
+                            marquer_post_publie(post["id"])
+                            st.success(f"✅ Publié sur X !")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ Erreur X : {err}")
                 with col_pub:
                     if st.button("✅ Marquer publié", key=f"pub_{post['id']}"):
                         marquer_post_publie(post["id"])

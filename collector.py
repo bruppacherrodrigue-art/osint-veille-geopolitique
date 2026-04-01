@@ -109,7 +109,7 @@ def detecter_region(titre, resume):
             if mot in texte:
                 scores[region] += 1
     best = max(scores, key=scores.get)
-    return best if scores[best] > 0 else "otan"
+    return best if scores[best] > 0 else None  # None = hors scope, à ignorer
 
 
 def collecter_region(region, sources):
@@ -178,6 +178,8 @@ def collecter_sources_globales():
                     continue
 
                 region = detecter_region(titre, resume)
+                if region is None:
+                    continue  # Article hors scope géopolitique, ignoré
                 sauvegarder_article(
                     source_name=nom_source,
                     region=region,
