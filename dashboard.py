@@ -575,9 +575,19 @@ with tab_posts:
                     score_g  = review.get("score_global", 0)
                     verdict  = review.get("verdict", "?")
                     v_color  = {"publier": "🟢", "ameliorer": "🟡", "rejeter": "🔴"}.get(verdict, "⚪")
-                    v_label  = {"publier": "Prêt à publier", "ameliorer": "À améliorer", "rejeter": "À rejeter"}.get(verdict, verdict)
+                    v_label  = {"publier": "✅ Ligne éditoriale validée — prêt à publier",
+                                "ameliorer": "🟡 À améliorer avant publication",
+                                "rejeter": "🔴 À rejeter"}.get(verdict, verdict)
 
-                    with st.expander(f"{v_color} Rapport éditorial — {v_label} ({score_g}/100)"):
+                    # Bannière visuelle selon verdict
+                    if verdict == "publier":
+                        st.success(f"**{v_label}** — Score {score_g}/100")
+                    elif verdict == "ameliorer":
+                        st.warning(f"**{v_label}** — Score {score_g}/100")
+                    else:
+                        st.error(f"**{v_label}** — Score {score_g}/100")
+
+                    with st.expander(f"{v_color} Détail du rapport éditorial ({score_g}/100)"):
                         c1, c2, c3, c4 = st.columns(4)
 
                         fc = review.get("fact_check", {})
