@@ -279,6 +279,36 @@ with st.sidebar:
             st.success("✅ Article généré")
             st.rerun()
 
+    # --- Sources ---
+    with st.expander("🔍 Santé des sources"):
+        from database import get_sources_health_summary, get_sources_mortes
+        summary = get_sources_health_summary()
+        if summary:
+            nb_ok   = summary.get("ok", 0)
+            nb_lent = summary.get("lent", 0)
+            nb_mort = summary.get("mort", 0) + summary.get("vide", 0)
+            st.caption(f"✅ {nb_ok} OK · 🐢 {nb_lent} lentes · 💀 {nb_mort} mortes")
+            mortes = get_sources_mortes()
+            if mortes:
+                with st.expander(f"💀 {nb_mort} source(s) à remplacer", expanded=False):
+                    for s in mortes:
+                        alt = s["url_alternative"]
+                        st.markdown(f"**{s['source_name']}** `[{s['region']}]`")
+                        if alt:
+                            st.success(f"🔗 Alternative : `{alt}`")
+                        else:
+                            st.warning("Aucune alternative détectée")
+        else:
+            st.caption("Pas encore de données — lance le test")
+
+        if st.button("🔍 Tester toutes les sources", use_container_width=True,
+                     help="Vérifie chaque flux RSS et cherche des alternatives aux sources mortes"):
+            with st.spinner("Test des sources en cours (peut prendre ~2 min)..."):
+                from source_watcher import tester_toutes_sources
+                tester_toutes_sources()
+            st.success("✅ Rapport mis à jour")
+            st.rerun()
+
     # --- Prédictions ---
     with st.expander("🔮 Prédictions"):
         if st.button("🔮 Générer prédictions", use_container_width=True):
@@ -649,7 +679,22 @@ with tab_posts:
                                     st.warning(f"⚠️ Contenu mis à jour mais révision échouée : {_e}")
                                 st.rerun()
 
-                col_x, col_pub, col_rej, col_sup = st.columns(4)
+                col_x, col_verif, col_pub, col_rej, col_sup = st.columns(5)
+                with col_verif:
+                    if st.button("🔍 Vérifier", key=f"verif_{post['id']}"):
+                        with st.spinner("Révision éditoriale..."):
+                            from editor import verifier_post
+                            review = verifier_post(post["id"])
+                        if review:
+                            v = review.get("verdict", "?")
+                            s = review.get("score_global", "?")
+                            if v == "publier":
+                                st.success(f"✅ {v.upper()} — {s}/100")
+                            elif v == "ameliorer":
+                                st.warning(f"✏️ {v.upper()} — {s}/100")
+                            else:
+                                st.error(f"❌ {v.upper()} — {s}/100")
+                        st.rerun()
                 with col_x:
                     if st.button("🐦 Poster sur X", key=f"x_{post['id']}"):
                         if type_post == "thread":

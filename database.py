@@ -156,6 +156,22 @@ def init_db():
         )
     """)
 
+    # --- Santé des sources RSS ---
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS sources_health (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_name     TEXT UNIQUE,
+            region          TEXT,
+            url             TEXT,
+            statut          TEXT DEFAULT 'inconnu',
+            nb_articles     INTEGER DEFAULT 0,
+            latence_ms      INTEGER DEFAULT 0,
+            derniere_ok     TEXT,
+            dernier_test    TEXT,
+            url_alternative TEXT
+        )
+    """)
+
     conn.commit()
     conn.close()
     print("✅ Base de données initialisée.")
@@ -675,6 +691,68 @@ def get_dernieres_alertes(region=None, limit=10):
         """, (limit,)).fetchall()
     conn.close()
     return rows
+
+
+# ============================================================
+# FONCTIONS SANTÉ SOURCES
+# ============================================================
+
+def upsert_source_health(source_name, region, url, statut, nb_articles,
+                          latence_ms, url_alternative=None):
+    """Insère ou met à jour le statut de santé d'une source."""
+    now = datetime.now().isoformat()
+    conn = get_connection()
+    conn.execute("""
+        INSERT INTO sources_health
+            (source_name, region, url, statut, nb_articles, latence_ms,
+             derniere_ok, dernier_test, url_alternative)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(source_name) DO UPDATE SET
+            url            = excluded.url,
+            statut         = excluded.statut,
+            nb_articles    = excluded.nb_articles,
+            latence_ms     = excluded.latence_ms,
+            derniere_ok    = CASE WHEN excluded.statut = 'ok' THEN excluded.derniere_ok
+                                  ELSE sources_health.derniere_ok END,
+            dernier_test   = excluded.dernier_test,
+            url_alternative = COALESCE(excluded.url_alternative,
+                                       sources_health.url_alternative)
+    """, (source_name, region, url, statut, nb_articles, latence_ms,
+          now if statut == "ok" else None, now, url_alternative))
+    conn.commit()
+    conn.close()
+
+
+def get_sources_health():
+    """Retourne toutes les sources avec leur statut."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT * FROM sources_health ORDER BY statut DESC, source_name ASC
+    """).fetchall()
+    conn.close()
+    return rows
+
+
+def get_sources_mortes():
+    """Retourne les sources en statut mort ou vide."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT * FROM sources_health
+        WHERE statut IN ('mort', 'vide')
+        ORDER BY source_name ASC
+    """).fetchall()
+    conn.close()
+    return rows
+
+
+def get_sources_health_summary():
+    """Retourne un résumé : {ok, lent, vide, mort, inconnu}."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT statut, COUNT(*) as n FROM sources_health GROUP BY statut
+    """).fetchall()
+    conn.close()
+    return {r["statut"]: r["n"] for r in rows}
 
 
 # Point d'entrée
