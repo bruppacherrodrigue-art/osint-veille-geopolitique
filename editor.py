@@ -15,7 +15,9 @@ Retourne un JSON stocké dans posts_x.editorial_review.
 
 import json
 import os
+import re
 import anthropic
+import requests
 
 try:
     from config import ANTHROPIC_API_KEY, CLAUDE_MODEL_FAST
@@ -26,8 +28,32 @@ except ImportError:
 from database import (
     update_editorial_review, get_editorial_review,
     get_dernieres_analyses, get_posts_publies_recents,
-    get_connection
+    get_articles_par_region, get_connection
 )
+
+# ============================================================
+# SCRAPER — récupère le contenu brut d'un article
+# ============================================================
+def _fetch_article_content(url, timeout=6):
+    """Récupère le texte d'un article via son URL (sans API). Max 1500 chars."""
+    if not url or url in ("N/A", ""):
+        return None
+    try:
+        headers = {"User-Agent": "Mozilla/5.0 (compatible; OSINTBot/1.0)"}
+        resp = requests.get(url, timeout=timeout, headers=headers)
+        if resp.status_code != 200:
+            return None
+        text = resp.text
+        text = re.sub(r"<(script|style)[^>]*>.*?</(script|style)>", " ", text,
+                      flags=re.DOTALL | re.IGNORECASE)
+        text = re.sub(r"<[^>]+>", " ", text)
+        text = text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">") \
+                   .replace("&nbsp;", " ").replace("&quot;", '"')
+        text = re.sub(r"\s+", " ", text).strip()
+        return text[:1500] if len(text) > 100 else None
+    except Exception:
+        return None
+
 
 # ============================================================
 # PROMPT ÉDITEUR
@@ -42,8 +68,11 @@ Type : {type_post}
 {texte_post}
 ---
 
-## ANALYSES SOURCES (vérité terrain)
+## ANALYSES SOURCES (synthèses Claude)
 {analyses_sources}
+
+## ARTICLES BRUTS (contenu original — source de vérité pour le fact-check)
+{articles_bruts}
 
 ## 20 DERNIERS POSTS PUBLIÉS (anti-doublon)
 {posts_publies}
@@ -51,10 +80,12 @@ Type : {type_post}
 ## TES 4 VÉRIFICATIONS
 
 ### 1. FACT-CHECK
-Compare chaque fait/chiffre du post avec les analyses sources.
-- verified = tous les faits correspondent aux sources
-- uncertain = certains faits ne sont pas dans les sources (non vérifiable)
-- contradiction = un fait contredit directement une analyse source
+Compare chaque fait/chiffre/nom propre du post avec les ARTICLES BRUTS en priorité,
+puis avec les ANALYSES SOURCES en complément.
+Les articles bruts sont la source de vérité — si un fait n'y figure pas, c'est suspect.
+- verified     = tous les faits sont présents dans les articles bruts ou les analyses
+- uncertain    = fait non trouvé dans les articles ni dans les analyses (possible hallucination)
+- contradiction = un fait contredit directement un article brut ou une analyse
 
 ### 2. TONE-CHECK
 Vérifie l'absence de :
@@ -168,6 +199,45 @@ def _formater_posts_publies(posts):
     return "\n".join(extraits)
 
 
+def _enrichir_sources_brutes(region, max_articles=5):
+    """
+    Récupère les articles récents pour la région et scrape leur contenu complet.
+    Retourne un texte formaté pour le prompt éditeur.
+    Limite à max_articles pour ne pas exploser le contexte Haiku.
+    """
+    articles = get_articles_par_region(region, limit=20)
+    if not articles:
+        return "Aucun article source disponible."
+
+    lignes = []
+    scrapes = 0
+    for art in articles:
+        if scrapes >= max_articles:
+            break
+        source  = art.get("source_name", "?")
+        titre   = art.get("titre", "")
+        url     = art.get("url", "")
+        resume  = art.get("resume", "") or ""
+
+        # Scraper le contenu si le résumé est court
+        contenu = resume
+        if len(resume) < 400 and url:
+            enrichi = _fetch_article_content(url)
+            if enrichi:
+                contenu = enrichi
+                scrapes += 1
+            else:
+                contenu = resume or "(résumé absent)"
+        else:
+            scrapes += 1  # Compte même si on n'a pas scrapé
+
+        lignes.append(f"[{source}] {titre}\n{contenu[:800]}")
+
+    if not lignes:
+        return "Aucun contenu source récupéré."
+    return "\n\n---\n\n".join(lignes)
+
+
 # ============================================================
 # FONCTION PRINCIPALE
 # ============================================================
@@ -195,12 +265,14 @@ def verifier_post(post_id):
     texte_post    = _extraire_texte(contenu, type_post)
     analyses      = get_dernieres_analyses(region, limit=3)
     posts_publies = get_posts_publies_recents(limit=20)
+    articles_bruts = _enrichir_sources_brutes(region, max_articles=5)
 
     prompt = PROMPT_EDITOR.format(
         style=style,
         type_post=type_post,
         texte_post=texte_post,
         analyses_sources=_formater_analyses(analyses),
+        articles_bruts=articles_bruts,
         posts_publies=_formater_posts_publies(posts_publies),
     )
 
