@@ -11,8 +11,6 @@ CORRECTIONS PERFORMANCE APPLIQUÉES :
 
 import json
 import os
-import re
-import requests
 from datetime import datetime
 import anthropic
 
@@ -36,27 +34,20 @@ except ImportError:
 
 def _fetch_article_content(url, timeout=6):
     """
-    Récupère le contenu complet d'un article depuis son URL.
-    Utilise requests + extraction HTML basique (gratuit, sans API).
+    Récupère le contenu complet d'un article via Scrapling (Fetcher).
+    TLS fingerprint spoofing + stealthy headers → meilleur passage anti-bot.
     Retourne le texte enrichi (max 1500 chars) ou None si échec.
     """
     if not url or url == "N/A":
         return None
     try:
-        headers = {"User-Agent": "Mozilla/5.0 (compatible; OSINTBot/1.0)"}
-        resp = requests.get(url, timeout=timeout, headers=headers)
-        if resp.status_code != 200:
+        from scrapling.fetchers import Fetcher
+        page = Fetcher.get(url, timeout=timeout, stealthy_headers=True)
+        if page.status != 200:
             return None
-        # Extraction HTML basique sans dépendances externes
-        text = resp.text
-        # Supprimer les balises script/style
-        text = re.sub(r"<(script|style)[^>]*>.*?</(script|style)>", " ", text, flags=re.DOTALL | re.IGNORECASE)
-        # Supprimer toutes les balises HTML
-        text = re.sub(r"<[^>]+>", " ", text)
-        # Nettoyer les entités HTML courantes
-        text = text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&nbsp;", " ").replace("&quot;", '"')
-        # Normaliser les espaces
-        text = re.sub(r"\s+", " ", text).strip()
+        text = page.get_all_text(ignore_tags=("script", "style", "noscript",
+                                               "nav", "footer", "header"))
+        text = " ".join(text.split())  # normaliser les espaces
         return text[:1500] if len(text) > 100 else None
     except Exception:
         return None

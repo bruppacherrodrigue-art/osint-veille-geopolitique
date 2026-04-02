@@ -18,9 +18,9 @@ Usage :
 import re
 import time
 import argparse
-import requests
 from datetime import datetime
 from urllib.parse import urljoin, urlparse
+from scrapling.fetchers import Fetcher
 
 from database import (
     init_db, upsert_source_health,
@@ -55,22 +55,22 @@ SEUIL_LENT_MS  = 6000 # latence > 6s = "lent"
 # ──────────────────────────────────────────────────────────
 def tester_source(name, url):
     """
-    Teste une source RSS via HTTP direct (sans feedparser).
+    Teste une source RSS via Scrapling Fetcher (TLS fingerprint spoofing).
     Retourne (statut, nb_articles, latence_ms)
     statut : 'ok' | 'lent' | 'vide' | 'mort'
     """
     debut = time.time()
-    headers = {"User-Agent": "Mozilla/5.0 (compatible; OSINTBot/1.0)"}
     try:
-        resp = requests.get(url, timeout=TIMEOUT_FEED, headers=headers)
+        page = Fetcher.get(url, timeout=TIMEOUT_FEED, stealthy_headers=True)
         latence_ms = int((time.time() - debut) * 1000)
 
-        if resp.status_code != 200:
+        if page.status != 200:
             return "mort", 0, latence_ms
 
-        body = resp.text
+        body = page.html_content  # contenu brut (XML pour les flux RSS)
+
         # Compter les entrées RSS (<item>) ou Atom (<entry>)
-        nb_items = len(re.findall(r"<item[\s>]", body, re.IGNORECASE))
+        nb_items   = len(re.findall(r"<item[\s>]", body, re.IGNORECASE))
         nb_entries = len(re.findall(r"<entry[\s>]", body, re.IGNORECASE))
         nb = max(nb_items, nb_entries)
 
@@ -111,38 +111,30 @@ def decouvrir_url_alternative(url_morte):
     """
     Tente de trouver une URL RSS valide depuis la homepage du domaine.
     Stratégie :
-      1. Cherche les balises <link rel="alternate" type="application/rss+xml">
-      2. Cherche les balises <link ... type="application/atom+xml">
-      3. Essaie des chemins RSS courants (/feed, /rss, /feed.xml, /rss.xml)
+      1. Scrapling CSS selectors sur la homepage → <link rel="alternate" type="rss/atom">
+      2. Chemins RSS courants (/feed, /rss, /rss.xml…)
     Retourne la première URL valide trouvée, ou None.
     """
     base = _base_url(url_morte)
-    headers = {"User-Agent": "Mozilla/5.0 (compatible; OSINTBot/1.0)"}
 
-    # Étape 1 & 2 — scraper la homepage
+    # Étape 1 — CSS selectors via Scrapling (bien plus fiable que regex sur HTML)
     try:
-        resp = requests.get(base, timeout=TIMEOUT_HTTP, headers=headers)
-        if resp.status_code == 200:
-            html = resp.text
-
-            # RSS + Atom
-            patterns = [
-                r'<link[^>]+type=["\']application/rss\+xml["\'][^>]+href=["\']([^"\']+)["\']',
-                r'<link[^>]+href=["\']([^"\']+)["\'][^>]+type=["\']application/rss\+xml["\']',
-                r'<link[^>]+type=["\']application/atom\+xml["\'][^>]+href=["\']([^"\']+)["\']',
-                r'<link[^>]+href=["\']([^"\']+)["\'][^>]+type=["\']application/atom\+xml["\']',
-            ]
-            for pattern in patterns:
-                matches = re.findall(pattern, html, re.IGNORECASE)
-                for candidate in matches:
-                    candidate = _normaliser_url(candidate, base)
+        page = Fetcher.get(base, timeout=TIMEOUT_HTTP, stealthy_headers=True)
+        if page.status == 200:
+            candidates = (
+                page.css('link[type="application/rss+xml"]::attr(href)').getall()
+                + page.css('link[type="application/atom+xml"]::attr(href)').getall()
+            )
+            for candidate in candidates:
+                candidate = _normaliser_url(candidate, base)
+                if candidate and candidate != url_morte:
                     statut, nb, _ = tester_source("?", candidate)
                     if statut in ("ok", "lent") and nb > 0:
                         return candidate
     except Exception:
         pass
 
-    # Étape 3 — chemins RSS communs
+    # Étape 2 — chemins RSS communs
     chemins_courants = [
         "/feed", "/feed/", "/rss", "/rss/", "/rss.xml", "/feed.xml",
         "/feeds/posts/default", "/atom.xml", "/news/rss.xml",

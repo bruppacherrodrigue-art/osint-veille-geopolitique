@@ -17,7 +17,6 @@ import json
 import os
 import re
 import anthropic
-import requests
 
 try:
     from config import ANTHROPIC_API_KEY, CLAUDE_MODEL_FAST
@@ -35,21 +34,21 @@ from database import (
 # SCRAPER — récupère le contenu brut d'un article
 # ============================================================
 def _fetch_article_content(url, timeout=6):
-    """Récupère le texte d'un article via son URL (sans API). Max 1500 chars."""
+    """
+    Récupère le texte d'un article via Scrapling (Fetcher).
+    TLS fingerprint spoofing + stealthy headers → meilleur passage anti-bot.
+    Max 1500 chars.
+    """
     if not url or url in ("N/A", ""):
         return None
     try:
-        headers = {"User-Agent": "Mozilla/5.0 (compatible; OSINTBot/1.0)"}
-        resp = requests.get(url, timeout=timeout, headers=headers)
-        if resp.status_code != 200:
+        from scrapling.fetchers import Fetcher
+        page = Fetcher.get(url, timeout=timeout, stealthy_headers=True)
+        if page.status != 200:
             return None
-        text = resp.text
-        text = re.sub(r"<(script|style)[^>]*>.*?</(script|style)>", " ", text,
-                      flags=re.DOTALL | re.IGNORECASE)
-        text = re.sub(r"<[^>]+>", " ", text)
-        text = text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">") \
-                   .replace("&nbsp;", " ").replace("&quot;", '"')
-        text = re.sub(r"\s+", " ", text).strip()
+        text = page.get_all_text(ignore_tags=("script", "style", "noscript",
+                                               "nav", "footer", "header"))
+        text = " ".join(text.split())
         return text[:1500] if len(text) > 100 else None
     except Exception:
         return None
