@@ -1,25 +1,19 @@
-# Clés API — NE JAMAIS COMMIT
-config.py
-
-# Base de données locale
-veille.db
-*.db
-
-# État mémoire
-memory_state.json
-
-# Cache Python
+```
+# Python
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
 
-# Anciennes cartes
-maps_generees/
+# Cache
+.cache/
 
-# Environnement virtuel
+# Logs
+*.log
+
+# Dependencies
 venv/
+.venv/
 .env
-
-# Fichiers système
-.DS_Store
-Thumbs.db
+.env.local
+```

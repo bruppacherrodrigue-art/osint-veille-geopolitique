@@ -29,13 +29,42 @@ def collecter_region(region, sources):
     """
     Collecte les articles RSS d'une région spécifique.
     Retourne le nombre de nouveaux articles sauvegardés.
+    
+    Améliorations :
+        - Rate limiting pour éviter de spammer les flux RSS
+        - Logging structuré
+        - Validation des URLs
     """
     total = 0
+    
+    # Import du rate limiter
+    try:
+        from utils import RATE_LIMITERS, sanitize_url, logger
+    except ImportError:
+        RATE_LIMITERS = {}
+        def sanitize_url(url): return url
+        class DummyLogger:
+            def info(self, msg): print(f"INFO: {msg}")
+            def warning(self, msg): print(f"WARNING: {msg}")
+            def error(self, msg): print(f"ERROR: {msg}")
+            def debug(self, msg): pass
+        logger = DummyLogger()
+    
     for nom_source, url in sources.items():
+        # Valider l'URL
+        url_valide = sanitize_url(url)
+        if not url_valide:
+            logger.warning(f"URL invalide pour {nom_source}, skip")
+            continue
+        
         try:
-            feed = feedparser.parse(url)
+            # Appliquer le rate limiter RSS
+            if 'rss' in RATE_LIMITERS:
+                RATE_LIMITERS['rss'].wait()
+            
+            feed = feedparser.parse(url_valide)
             if not feed.entries:
-                print(f"    ⚠️  {nom_source} : flux vide ou inaccessible ({url})")
+                logger.warning(f"{nom_source} : flux vide ou inaccessible ({url_valide})")
                 continue
 
             nouveaux = 0
@@ -60,9 +89,9 @@ def collecter_region(region, sources):
 
             total += nouveaux
             if nouveaux > 0:
-                print(f"    ✅ {nom_source} : {nouveaux} article(s)")
+                logger.info(f"{nom_source} : {nouveaux} article(s)")
         except Exception as e:
-            print(f"    ❌ Erreur {nom_source} : {e}")
+            logger.error(f"Erreur {nom_source} : {e}")
 
     return total
 
@@ -71,13 +100,41 @@ def collecter_sources_globales():
     """
     Collecte les sources globales et auto-tague chaque article par région.
     Retourne le nombre total de nouveaux articles.
+    
+    Améliorations :
+        - Rate limiting pour éviter de spammer les flux RSS
+        - Logging structuré
+        - Validation des URLs
     """
+    # Import du rate limiter
+    try:
+        from utils import RATE_LIMITERS, sanitize_url, logger
+    except ImportError:
+        RATE_LIMITERS = {}
+        def sanitize_url(url): return url
+        class DummyLogger:
+            def info(self, msg): print(f"INFO: {msg}")
+            def warning(self, msg): print(f"WARNING: {msg}")
+            def error(self, msg): print(f"ERROR: {msg}")
+            def debug(self, msg): pass
+        logger = DummyLogger()
+    
     total = 0
     for nom_source, url in SOURCES_GLOBALES.items():
+        # Valider l'URL
+        url_valide = sanitize_url(url)
+        if not url_valide:
+            logger.warning(f"URL invalide pour {nom_source} (global), skip")
+            continue
+        
         try:
-            feed = feedparser.parse(url)
+            # Appliquer le rate limiter RSS
+            if 'rss' in RATE_LIMITERS:
+                RATE_LIMITERS['rss'].wait()
+            
+            feed = feedparser.parse(url_valide)
             if not feed.entries:
-                print(f"    ⚠️  {nom_source} (global) : flux vide")
+                logger.warning(f"{nom_source} (global) : flux vide")
                 continue
 
             nouveaux = 0
@@ -105,9 +162,9 @@ def collecter_sources_globales():
 
             total += nouveaux
             if nouveaux > 0:
-                print(f"    ✅ {nom_source} (global) : {nouveaux} article(s)")
+                logger.info(f"{nom_source} (global) : {nouveaux} article(s)")
         except Exception as e:
-            print(f"    ❌ Erreur {nom_source} (global) : {e}")
+            logger.error(f"Erreur {nom_source} (global) : {e}")
 
     return total
 

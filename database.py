@@ -1,11 +1,31 @@
 """
 database.py — Gestion de la base de données SQLite
 Crée et gère veille.db avec 7 tables.
+
+Améliorations appliquées :
+    - Création automatique d'index pour optimisation des requêtes
+    - Logging structuré
+    - Gestion robuste des erreurs SQL
 """
 
 import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
+
+# Import des utilitaires
+try:
+    from utils import create_sql_indexes, logger
+except ImportError:
+    # Fallback si utils.py n'est pas disponible
+    class DummyLogger:
+        def info(self, msg): print(f"INFO: {msg}")
+        def warning(self, msg): print(f"WARNING: {msg}")
+        def error(self, msg): print(f"ERROR: {msg}")
+        def debug(self, msg): pass
+    logger = DummyLogger()
+    
+    def create_sql_indexes(*args, **kwargs):
+        pass
 
 
 DB_PATH = "veille.db"
@@ -16,164 +36,187 @@ def _dict_factory(cursor, row):
     return {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
 
 
-def get_connection():
-    """Retourne une connexion SQLite avec row_factory dict."""
-    conn = sqlite3.connect(DB_PATH)
+def get_connection(db_path: str = None):
+    """
+    Retourne une connexion SQLite avec row_factory dict.
+    
+    Args:
+        db_path: Chemin optionnel vers la base (défaut: DB_PATH global)
+    
+    Returns:
+        Connexion SQLite
+    """
+    path = db_path if db_path else DB_PATH
+    conn = sqlite3.connect(path)
     conn.row_factory = _dict_factory
     return conn
 
 
-def init_db():
-    """Crée toutes les tables si elles n'existent pas encore."""
-    conn = get_connection()
+def init_db(db_path: str = None):
+    """
+    Crée toutes les tables si elles n'existent pas encore et optimise avec des index.
+    
+    Args:
+        db_path: Chemin optionnel vers la base (défaut: veille.db)
+    """
+    conn = get_connection(db_path)
     c = conn.cursor()
+    
+    # Utiliser le chemin correct pour les index
+    actual_db_path = db_path if db_path else DB_PATH
 
-    # --- Articles collectés via RSS ---
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS articles (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            source_name   TEXT,
-            region        TEXT,
-            titre         TEXT,
-            url           TEXT UNIQUE,
-            resume        TEXT,
-            date_pub      TEXT,
-            date_collecte TEXT,
-            lu            INTEGER DEFAULT 0,
-            fiabilite     REAL DEFAULT 0.8
-        )
-    """)
-
-    # --- Analyses Claude (résultat JSON) ---
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS analyses (
-            id            INTEGER PRIMARY KEY AUTOINCREMENT,
-            region        TEXT,
-            contenu       TEXT,
-            tendances     TEXT,
-            niveau_alerte TEXT,
-            date_analyse  TEXT
-        )
-    """)
-
-    # --- Posts rédigés pour X ---
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS posts_x (
-            id               INTEGER PRIMARY KEY AUTOINCREMENT,
-            region           TEXT,
-            contenu          TEXT,
-            statut           TEXT DEFAULT 'brouillon',
-            style            TEXT,
-            date_creation    TEXT,
-            date_publication TEXT,
-            tweet_id         TEXT,
-            editorial_review TEXT
-        )
-    """)
-    # Migration : ajouter la colonne si elle n'existe pas encore (DB existante)
     try:
-        c.execute("ALTER TABLE posts_x ADD COLUMN editorial_review TEXT")
+        # --- Articles collectés via RSS ---
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS articles (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_name   TEXT,
+                region        TEXT,
+                titre         TEXT,
+                url           TEXT UNIQUE,
+                resume        TEXT,
+                date_pub      TEXT,
+                date_collecte TEXT,
+                lu            INTEGER DEFAULT 0,
+                fiabilite     REAL DEFAULT 0.8,
+                statut        TEXT DEFAULT 'publie'
+            )
+        """)
+
+        # --- Analyses Claude (résultat JSON) ---
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS analyses (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                region        TEXT,
+                contenu       TEXT,
+                tendances     TEXT,
+                niveau_alerte TEXT,
+                date_analyse  TEXT
+            )
+        """)
+
+        # --- Posts rédigés pour X ---
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS posts_x (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                region           TEXT,
+                contenu          TEXT,
+                statut           TEXT DEFAULT 'brouillon',
+                style            TEXT,
+                date_creation    TEXT,
+                date_publication TEXT,
+                tweet_id         TEXT,
+                editorial_review TEXT
+            )
+        """)
+
+        # --- Métriques d'engagement X ---
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS engagement (
+                post_id          INTEGER PRIMARY KEY,
+                tweet_id         TEXT,
+                published_at     TEXT,
+                hour_published   INTEGER,
+                day_of_week      INTEGER,
+                region           TEXT,
+                style            TEXT,
+                has_map          INTEGER DEFAULT 0,
+                char_count       INTEGER,
+                is_thread        INTEGER DEFAULT 0,
+                likes            INTEGER DEFAULT 0,
+                retweets         INTEGER DEFAULT 0,
+                replies          INTEGER DEFAULT 0,
+                impressions      INTEGER DEFAULT 0,
+                engagement_score REAL DEFAULT 0,
+                last_checked     TEXT
+            )
+        """)
+
+        # --- Prédictions géopolitiques ---
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS predictions (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                region              TEXT,
+                prediction          TEXT,
+                horizon_jours       INTEGER,
+                probabilite         REAL,
+                raisonnement        TEXT,
+                critere_verification TEXT,
+                categorie           TEXT,
+                acteurs_cles        TEXT,
+                date_creation       TEXT,
+                date_echeance       TEXT,
+                statut              TEXT DEFAULT 'active',
+                resultat            TEXT,
+                explication         TEXT,
+                precision_score     REAL,
+                lecons              TEXT,
+                date_verification   TEXT,
+                tweet_id_prediction TEXT,
+                tweet_id_bilan      TEXT
+            )
+        """)
+
+        # --- Signaux terrain (Telegram, trackers, partisans) ---
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS signaux_terrain (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_name    TEXT,
+                region         TEXT,
+                titre          TEXT,
+                url            TEXT UNIQUE,
+                contenu        TEXT,
+                date_pub       TEXT,
+                date_collecte  TEXT,
+                type_source    TEXT,
+                fiabilite      REAL DEFAULT 0.6,
+                priorite       INTEGER DEFAULT 0,
+                traite         INTEGER DEFAULT 0
+            )
+        """)
+
+        # --- Alertes terrain générées ---
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS alertes_terrain (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                region         TEXT,
+                chaleur        INTEGER,
+                resume         TEXT,
+                evenements     TEXT,
+                signal_partisan TEXT,
+                post_breaking  TEXT,
+                date_creation  TEXT
+            )
+        """)
+
+        # --- Santé des sources RSS ---
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS sources_health (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                source_name     TEXT UNIQUE,
+                region          TEXT,
+                url             TEXT,
+                statut          TEXT DEFAULT 'inconnu',
+                nb_articles     INTEGER DEFAULT 0,
+                latence_ms      INTEGER DEFAULT 0,
+                derniere_ok     TEXT,
+                dernier_test    TEXT,
+                url_alternative TEXT
+            )
+        """)
+
         conn.commit()
-    except Exception:
-        pass  # Colonne déjà présente
-
-    # --- Métriques d'engagement X ---
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS engagement (
-            post_id          INTEGER PRIMARY KEY,
-            tweet_id         TEXT,
-            published_at     TEXT,
-            hour_published   INTEGER,
-            day_of_week      INTEGER,
-            region           TEXT,
-            style            TEXT,
-            has_map          INTEGER DEFAULT 0,
-            char_count       INTEGER,
-            is_thread        INTEGER DEFAULT 0,
-            likes            INTEGER DEFAULT 0,
-            retweets         INTEGER DEFAULT 0,
-            replies          INTEGER DEFAULT 0,
-            impressions      INTEGER DEFAULT 0,
-            engagement_score REAL DEFAULT 0,
-            last_checked     TEXT
-        )
-    """)
-
-    # --- Prédictions géopolitiques ---
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS predictions (
-            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-            region              TEXT,
-            prediction          TEXT,
-            horizon_jours       INTEGER,
-            probabilite         REAL,
-            raisonnement        TEXT,
-            critere_verification TEXT,
-            categorie           TEXT,
-            acteurs_cles        TEXT,
-            date_creation       TEXT,
-            date_echeance       TEXT,
-            statut              TEXT DEFAULT 'active',
-            resultat            TEXT,
-            explication         TEXT,
-            precision_score     REAL,
-            lecons              TEXT,
-            date_verification   TEXT,
-            tweet_id_prediction TEXT,
-            tweet_id_bilan      TEXT
-        )
-    """)
-
-    # --- Signaux terrain (Telegram, trackers, partisans) ---
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS signaux_terrain (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
-            source_name    TEXT,
-            region         TEXT,
-            titre          TEXT,
-            url            TEXT UNIQUE,
-            contenu        TEXT,
-            date_pub       TEXT,
-            date_collecte  TEXT,
-            type_source    TEXT,
-            fiabilite      REAL DEFAULT 0.6,
-            priorite       INTEGER DEFAULT 0,
-            traite         INTEGER DEFAULT 0
-        )
-    """)
-
-    # --- Alertes terrain générées ---
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS alertes_terrain (
-            id             INTEGER PRIMARY KEY AUTOINCREMENT,
-            region         TEXT,
-            chaleur        INTEGER,
-            resume         TEXT,
-            evenements     TEXT,
-            signal_partisan TEXT,
-            post_breaking  TEXT,
-            date_creation  TEXT
-        )
-    """)
-
-    # --- Santé des sources RSS ---
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS sources_health (
-            id              INTEGER PRIMARY KEY AUTOINCREMENT,
-            source_name     TEXT UNIQUE,
-            region          TEXT,
-            url             TEXT,
-            statut          TEXT DEFAULT 'inconnu',
-            nb_articles     INTEGER DEFAULT 0,
-            latence_ms      INTEGER DEFAULT 0,
-            derniere_ok     TEXT,
-            dernier_test    TEXT,
-            url_alternative TEXT
-        )
-    """)
-
-    conn.commit()
-    conn.close()
+        logger.info("Tables de base de données créées/vérifiées")
+        
+        # Créer les index pour optimisation (après création des tables)
+        create_sql_indexes(actual_db_path)
+        
+    except sqlite3.Error as e:
+        logger.error(f"Erreur SQL lors de l'initialisation: {e}")
+        raise
+    finally:
+        conn.close()
+    
     print("✅ Base de données initialisée.")
 
 
@@ -753,6 +796,81 @@ def get_sources_health_summary():
     """).fetchall()
     conn.close()
     return {r["statut"]: r["n"] for r in rows}
+
+
+# ============================================================
+# ARCHIVAGE DES DONNÉES ANCIENNES
+# ============================================================
+
+def archive_old_data(db_path: str = "veille.db", days_threshold: int = 90) -> int:
+    """
+    Archive les données plus anciennes que N jours pour éviter la croissance infinie.
+    
+    Args:
+        db_path: Chemin de la base de données
+        days_threshold: Nombre de jours avant archivage
+    
+    Returns:
+        Nombre d'articles archivés
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    conn = get_connection(db_path) if 'db_path' in locals() else get_connection()
+    cursor = conn.cursor()
+    
+    cutoff_date = (datetime.now() - timedelta(days=days_threshold)).strftime('%Y-%m-%d %H:%M:%S')
+    
+    # Archiver les anciens articles
+    cursor.execute("""
+        UPDATE articles 
+        SET statut = 'archive' 
+        WHERE date_collecte < ? AND statut != 'archive'
+    """, (cutoff_date,))
+    articles_archived = cursor.rowcount
+    
+    # Archiver les anciens posts publiés
+    cursor.execute("""
+        UPDATE posts_x 
+        SET statut = 'archive' 
+        WHERE date_creation < ? AND statut = 'publie'
+    """, (cutoff_date,))
+    posts_archived = cursor.rowcount
+    
+    # Archiver les prédictions vérifiées anciennes
+    cursor.execute("""
+        UPDATE predictions 
+        SET statut = 'archive' 
+        WHERE date_echeance < ? AND statut = 'verifiee'
+    """, (cutoff_date,))
+    predictions_archived = cursor.rowcount
+    
+    conn.commit()
+    conn.close()
+    
+    total_archived = articles_archived + posts_archived + predictions_archived
+    logger.info(f"Archivage: {total_archived} éléments archivés (>{days_threshold} jours)")
+    logger.info(f"  - Articles: {articles_archived}")
+    logger.info(f"  - Posts X: {posts_archived}")
+    logger.info(f"  - Prédictions: {predictions_archived}")
+    
+    return total_archived
+
+
+def get_db_connection(db_path: str = None):
+    """
+    Retourne une connexion à la base de données.
+    
+    Args:
+        db_path: Chemin optionnel vers la base (défaut: veille.db)
+    
+    Returns:
+        Connexion SQLite
+    """
+    path = db_path if db_path else "veille.db"
+    conn = sqlite3.connect(path)
+    conn.row_factory = _dict_factory
+    return conn
 
 
 # Point d'entrée

@@ -1,0 +1,30 @@
+# OSINT Veille Géopolitique - Dépendances Python
+# Dernière mise à jour : Avril 2026
+
+# IA / LLM
+anthropic>=0.40.0
+
+# Collecte RSS
+feedparser>=6.0.10
+
+# Publication X/Twitter
+tweepy>=4.14.0
+
+# Dashboard
+streamlit>=1.35.0
+
+# Visualisation
+matplotlib>=3.8.0
+
+# HTTP / Web scraping
+requests>=2.31.0
+scrapling>=0.2.0
+
+# Recherche web
+tavily-python>=0.3.0
+
+# Données
+pandas>=2.0.0
+
+# Utilitaires
+python-dotenv>=1.0.0
