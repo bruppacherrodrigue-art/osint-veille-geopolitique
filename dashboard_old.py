@@ -1,13 +1,12 @@
 """
 dashboard.py — Interface Streamlit — OSINT Veille Géopolitique
-Navigation par sidebar + Page d'accueil Dashboard
-Pages : Accueil, Breaking, Articles, Analyses, Régions, Posts X, Prédictions, Macro, Engagement, Mémoire
+9 onglets : Breaking, Articles, Analyses, Régions, Posts X, Prédictions, Macro, Engagement, Mémoire
 """
 
 import streamlit as st
 import json
 import matplotlib.pyplot as plt
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from database import (
     init_db, get_articles_par_region, get_toutes_analyses,
@@ -16,9 +15,7 @@ from database import (
     supprimer_prediction, update_post_contenu, get_editorial_review,
     get_stats_engagement, get_posts_publies_avec_engagement,
     get_engagement_evolution, update_engagement,
-    get_dernieres_alertes, compter_articles,
-    get_sources_health_summary, get_sources_mortes, get_dernieres_analyses,
-    get_sources_health, get_articles_recents
+    get_dernieres_alertes, compter_articles
 )
 from writer import (
     parser_contenu_post, extraire_tweets, extraire_texte_post,
@@ -29,38 +26,14 @@ from twitter import poster_sur_x, poster_thread_sur_x
 from memory import afficher_memoire, get_toutes_regions_memoire
 from macro import get_donnees_macro, get_historique_petrole
 
-
 # ============================================================
 # CONFIGURATION PAGE
 # ============================================================
 st.set_page_config(
     page_title="OSINT Veille Géopolitique",
     page_icon="🌍",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
-
-
-def get_last_update_info():
-    """Récupère l'heure de dernière collecte depuis sources_health."""
-    try:
-        health = get_sources_health()
-        if health:
-            dernier_test = max((h.get("dernier_test") or "") for h in health if h.get("dernier_test"))
-            if dernier_test:
-                dt = datetime.fromisoformat(dernier_test[:19])
-                diff = datetime.now() - dt
-                minutes = int(diff.total_seconds() / 60)
-                if minutes < 1:
-                    return "à l'instant"
-                elif minutes < 60:
-                    return f"il y a {minutes} min"
-                else:
-                    heures = int(minutes / 60)
-                    return f"il y a {heures}h{minutes % 60}"
-        return "inconnue"
-    except Exception:
-        return "inconnue"
 
 # ============================================================
 # CSS — THÈME OSINT SOMBRE
