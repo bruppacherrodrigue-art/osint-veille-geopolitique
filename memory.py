@@ -1,12 +1,37 @@
 """
 memory.py — Mémoire contextuelle glissante 7 jours
 Utilise Claude Haiku pour synthétiser et mettre à jour le contexte par région.
+
+Améliorations appliquées :
+    - Sauvegarde automatique avant modification (backup)
+    - Logging structuré
+    - Gestion robuste des erreurs
 """
 
 import json
 import os
 from datetime import datetime, timedelta
 import anthropic
+
+# Import des utilitaires
+try:
+    from utils import backup_memory_file, auto_backup_on_update, logger
+except ImportError:
+    # Fallback si utils.py n'est pas disponible
+    class DummyLogger:
+        def info(self, msg): print(f"INFO: {msg}")
+        def warning(self, msg): print(f"WARNING: {msg}")
+        def error(self, msg): print(f"ERROR: {msg}")
+        def debug(self, msg): pass
+    logger = DummyLogger()
+    
+    def backup_memory_file(*args, **kwargs):
+        return None
+    
+    def auto_backup_on_update(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
 
 try:
     from config import ANTHROPIC_API_KEY, CLAUDE_MODEL_FAST
@@ -23,16 +48,31 @@ def _charger_memoire():
     if os.path.exists(MEMORY_FILE):
         try:
             with open(MEMORY_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
+                data = json.load(f)
+                logger.debug(f"Mémoire chargée: {len(data)} régions")
+                return data
+        except json.JSONDecodeError as e:
+            logger.error(f"Fichier mémoire corrompu: {e}")
+        except Exception as e:
+            logger.error(f"Erreur lecture mémoire: {e}")
     return {}
 
 
 def _sauvegarder_memoire(data):
-    """Sauvegarde le fichier de mémoire JSON."""
-    with open(MEMORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    """
+    Sauvegarde le fichier de mémoire JSON avec backup automatique.
+    """
+    try:
+        # Backup automatique avant écriture
+        backup_memory_file(MEMORY_FILE)
+        
+        with open(MEMORY_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        
+        logger.debug(f"Mémoire sauvegardée: {len(data)} régions")
+    except Exception as e:
+        logger.error(f"Erreur sauvegarde mémoire: {e}")
+        raise
 
 
 def _nettoyer_entrees_anciennes(data):
@@ -66,9 +106,14 @@ def update_memory(region, nouvelles_analyses):
     Utilise Haiku pour synthétiser.
 
     FIX PERFORMANCE : n'est appelé que si nouvelles_analyses n'est pas vide.
+    
+    Améliorations :
+        - Backup automatique avant modification
+        - Logging structuré
+        - Gestion robuste des erreurs API
     """
     if not nouvelles_analyses:
-        print(f"  ℹ️  Mémoire {region} : pas de nouvelles analyses, mise à jour ignorée.")
+        logger.info(f"Mémoire {region} : pas de nouvelles analyses, mise à jour ignorée.")
         return
 
     data = _charger_memoire()
@@ -114,9 +159,11 @@ Sois factuel et concis. Ne répète pas les dates en détail."""
         data[region]["synthese"] = synthese
         data[region]["date_mise_a_jour"] = datetime.now().isoformat()
         _sauvegarder_memoire(data)
-        print(f"  ✅ Mémoire mise à jour pour {region}")
+        logger.info(f"Mémoire mise à jour pour {region}")
+    except anthropic.APIError as e:
+        logger.error(f"Erreur API Claude pour mémoire {region}: {e}")
     except Exception as e:
-        print(f"  ⚠️  Erreur mise à jour mémoire {region} : {e}")
+        logger.error(f"Erreur mise à jour mémoire {region}: {e}")
 
 
 def _region_as_dict(valeur):
