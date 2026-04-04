@@ -285,11 +285,17 @@ with st.sidebar:
     
     # Mode de travail - Navigation contextuelle
     st.markdown("### 🎯 Mode de travail")
+    
+    # Get current mode from session state and map to display value
+    current_mode = st.session_state.get("workflow_mode", "veille")
+    REVERSE_MODE_MAP = {"veille": "👁️ Veille", "redaction": "✍️ Rédaction", "analyse": "📊 Analyse"}
+    default_display = REVERSE_MODE_MAP.get(current_mode, "👁️ Veille")
+    
     workflow_mode = st.segmented_control(
         "Mode",
         ["👁️ Veille", "✍️ Rédaction", "📊 Analyse"],
         key="workflow_mode_selector",
-        default=st.session_state.get("workflow_mode", "veille")
+        default=default_display
     )
     
     # Map mode to internal state
